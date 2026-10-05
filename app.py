@@ -1,5 +1,6 @@
 import json
 import time
+import pandas as pd
 import streamlit as st
 
 # --- 1. 後端邏輯核心 (模組二與模組三) ---
@@ -15,53 +16,71 @@ def extract_destination(user_input: str) -> str:
         return "未知地點"
 
 def find_bus_routes(destination: str) -> dict:
-    """模擬交通 API 路線規劃"""
+    """模擬交通 API 路線規劃與座標資料"""
     mock_routes_db = {
-        "新竹火車站": [
-            {
-                "option_id": 1,
-                "bus_route_name": "藍15區",
-                "boarding_stop": "磐石高中",
-                "alighting_stop": "新竹火車站",
-                "estimated_wait_time_mins": 5,
-                "travel_time_mins": 15,
-                "fare": 15
-            },
-            {
-                "option_id": 2,
-                "bus_route_name": "23路",
-                "boarding_stop": "中正市場",
-                "alighting_stop": "火車站",
-                "estimated_wait_time_mins": 8,
-                "travel_time_mins": 18,
-                "fare": 15
-            }
-        ],
-        "巨城購物中心": [
-            {
-                "option_id": 1,
-                "bus_route_name": "51路",
-                "boarding_stop": "磐石高中",
-                "alighting_stop": "巨城購物中心",
-                "estimated_wait_time_mins": 6,
-                "travel_time_mins": 12,
-                "fare": 15
-            }
-        ]
+        "新竹火車站": {
+            "routes": [
+                {
+                    "option_id": 1,
+                    "bus_route_name": "藍15區",
+                    "boarding_stop": "磐石高中",
+                    "alighting_stop": "新竹火車站",
+                    "estimated_wait_time_mins": 5,
+                    "travel_time_mins": 15,
+                    "fare": 15
+                },
+                {
+                    "option_id": 2,
+                    "bus_route_name": "23路",
+                    "boarding_stop": "中正市場",
+                    "alighting_stop": "火車站",
+                    "estimated_wait_time_mins": 8,
+                    "travel_time_mins": 18,
+                    "fare": 15
+                }
+            ],
+            # 地圖座標點 (以新竹市區為例)
+            "coords": pd.DataFrame([
+                {"lat": 24.8080, "lon": 120.9545, "name": "起點：磐石高中"},
+                {"lat": 24.8015, "lon": 120.9715, "name": "終點：新竹火車站"}
+            ])
+        },
+        "巨城購物中心": {
+            "routes": [
+                {
+                    "option_id": 1,
+                    "bus_route_name": "51路",
+                    "boarding_stop": "磐石高中",
+                    "alighting_stop": "巨城購物中心",
+                    "estimated_wait_time_mins": 6,
+                    "travel_time_mins": 12,
+                    "fare": 15
+                }
+            ],
+            "coords": pd.DataFrame([
+                {"lat": 24.8080, "lon": 120.9545, "name": "起點：磐石高中"},
+                {"lat": 24.8105, "lon": 120.9752, "name": "終點：巨城購物中心"}
+            ])
+        }
     }
-    routes = mock_routes_db.get(destination, [])
-    if routes:
-        return {"status": "success", "route_options": routes}
+    
+    result = mock_routes_db.get(destination)
+    if result:
+        return {
+            "status": "success", 
+            "route_options": result["routes"],
+            "map_coords": result["coords"]
+        }
     else:
         return {"status": "not_found", "message": "查無直達公車路線"}
 
 # --- 2. 前端介面設計 (Streamlit UI) ---
-st.set_page_config(page_title="AI 智慧公車無感支付與導航", page_icon="🚌", layout="centered")
+st.set_page_config(page_title="AI 智慧公車無感支付與動態導航", page_icon="🚌", layout="centered")
 
 st.title("🚌 AI 智慧公車無感支付與動態導航")
-st.write("輸入你想去的地方，體驗「開口即出發、走過即扣款」的零延遲乘車體驗！")
+st.write("結合 **Edge AI 無感支付** 與 **動態地圖導航** 的次世代乘車體驗！")
 
-# 初始化 Session State 追蹤狀態
+# 初始化 Session State
 if "step" not in st.session_state:
     st.session_state.step = "search"
 if "selected_route" not in st.session_state:
@@ -86,6 +105,11 @@ if "destination" in st.session_state and st.session_state.step in ["search_done"
     st.success(f"✅ AI 成功解析目的地：**{destination}**")
     
     if route_result["status"] == "success":
+        # 🗺️ 顯示地圖視覺化
+        st.subheader("🗺️ 即時動態導航地圖")
+        st.map(route_result["map_coords"], zoom=13, use_container_width=True)
+        st.caption("📍 地圖標記了您的目前上車站點與目標下車站點")
+        
         st.subheader("💡 推薦搭乘路線")
         for opt in route_result["route_options"]:
             with st.container(border=True):
@@ -100,7 +124,6 @@ if "destination" in st.session_state and st.session_state.step in ["search_done"
                 
                 st.text(f"📍 上車站牌：{opt['boarding_stop']} ➔ 下車站牌：{opt['alighting_stop']}")
                 
-                # 點擊後進入無感支付模擬流程
                 if st.button(f"確認搭乘此班次 ({opt['bus_route_name']})", key=opt['option_id']):
                     st.session_state.selected_route = opt
                     st.session_state.step = "payment_simulation"
@@ -114,7 +137,6 @@ if st.session_state.step == "payment_simulation":
     st.markdown("---")
     st.subheader("🔄 車載 Edge AI 感應與無感支付進行中...")
     
-    # 動態進度模擬
     with st.status("正在與車載系統建立連線...", expanded=True) as status:
         st.write("📡 階段 1/3：已向後端寫入待扣款狀態 (`Ready to Board`)")
         time.sleep(0.8)
@@ -126,7 +148,6 @@ if st.session_state.step == "payment_simulation":
     
     st.balloons()
     
-    # 顯示數位乘車憑證與交易收據
     with st.container(border=True):
         st.markdown("### 💳 數位乘車憑證與交易收據")
         st.markdown(f"- **搭乘班次**：`{opt['bus_route_name']}`")
