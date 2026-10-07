@@ -31,8 +31,6 @@ def render_sidebar(db, user_email):
     # 邏輯判斷：尚未綁卡
     if not user_data["credit_card"]:
         st.warning("⚠️ 尚未綁定信用卡")
-        
-        # ✨ 優化：點擊展開才會出現輸入資料的表單
         with st.expander("💳 點擊展開：綁定信用卡"):
             cc_num = st.text_input("信用卡卡號 (16碼數字)", max_chars=16, key="cc_num")
             cc_date = st.text_input("有效期限 (MM/YY)", max_chars=5, key="cc_date")
@@ -57,8 +55,7 @@ def render_sidebar(db, user_email):
         cc_hidden = f"**** **** **** {user_data['credit_card'][-4:]}"
         st.markdown(f"**已綁定信用卡**：`{cc_hidden}`")
         
-        # 儲值中心 (綁定後才顯示)
-        with st.expander("💰 儲值中心 (模擬)", expanded=True):
+        with st.expander("💰 儲值中心 (模擬)", expanded=False):
             add_amount = st.selectbox("選擇儲值金額", [15, 30, 50, 100, 300, 500])
             if st.button("確認儲值", use_container_width=True):
                 db["users"][user_email]["balance"] += add_amount
@@ -67,7 +64,6 @@ def render_sidebar(db, user_email):
                 time.sleep(1)
                 st.rerun()
         
-        # 解除綁定按鈕
         if st.button("❌ 解除綁定信用卡", use_container_width=True):
             db["users"][user_email]["credit_card"] = None
             save_db(db)
@@ -75,7 +71,23 @@ def render_sidebar(db, user_email):
             
     st.divider()
     
-    # 登出系統
+    # ✨ 新增：歷史乘車紀錄與收據專區
+    st.markdown("### 📜 歷史乘車紀錄")
+    history_list = user_data.get("history", [])
+    if not history_list:
+        st.caption("尚無乘車紀錄")
+    else:
+        # 用 expander 讓收據可以展開查看詳細資訊
+        for idx, h in enumerate(reversed(history_list[-5:])): # 顯示最近 5 筆
+            with st.expander(f"🚍 {h['route']} (-${h['fare']})"):
+                st.caption(f"🕒 {h['time']}")
+                st.write(f"**起點**: {h['start']}")
+                st.write(f"**終點**: {h['end']}")
+                st.write(f"**扣款金額**: NT$ {h['fare']}")
+                st.success("✅ 無感支付完成")
+                
+    st.divider()
+    
     if st.button("🚪 登出系統", use_container_width=True):
         st.session_state.current_user = None
         st.session_state.page = "login"

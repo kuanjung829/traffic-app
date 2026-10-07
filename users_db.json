@@ -14,8 +14,16 @@
             "is_student": true,
             "school_abbr": "kkhs",
             "credit_card": "1234567812345678",
-            "balance": 180,
-            "history": []
+            "balance": 168,
+            "history": [
+                {
+                    "route": "藍1區間車",
+                    "start": "新竹火車站",
+                    "end": "清大夜市",
+                    "fare": 12,
+                    "time": "2026-10-07 20:34:57"
+                }
+            ]
         }
     }
 }

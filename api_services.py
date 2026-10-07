@@ -34,7 +34,6 @@ def get_real_bus_eta(token, route_name, stop_keyword):
     return "預估 8"
 
 def clean_html(raw_html):
-    """清除 Google 走路指示裡的 HTML 標籤"""
     return re.sub(r'<.*?>', '', raw_html)
 
 def get_google_transit_route(start_loc, dest_loc):
@@ -57,25 +56,24 @@ def get_google_transit_route(start_loc, dest_loc):
         if data.get("status") == "OK":
             route = data["routes"][0]
             leg = route["legs"][0]
-            
-            # 1. 抓取 Google 算出的真實票價 (如果沒有就預設 15)
             real_fare = route.get("fare", {}).get("value", 15)
-            
             total_duration = leg["duration"]["text"]
+            
             transit_legs = []
-            path_coords = [] # 2. 收集路線座標畫地圖
+            path_coords = []
+            has_bus = False
             
             for step in leg["steps"]:
                 path_coords.append({"lat": step["start_location"]["lat"], "lon": step["start_location"]["lng"]})
                 
-                # 分辨是走路還是搭公車
                 if step["travel_mode"] == "TRANSIT":
+                    has_bus = True
                     details = step["transit_details"]
                     bus_name = details["line"].get("short_name", details["line"].get("name"))
                     board = details["departure_stop"]["name"]
                     alight = details["arrival_stop"]["name"]
                     num_stops = details.get("num_stops", 0)
-                    dep_time = details.get("departure_time", {}).get("text", "未提供") # 抓取發車時間
+                    dep_time = details.get("departure_time", {}).get("text", "未提供")
                     
                     transit_legs.append({
                         "type": "TRANSIT",
@@ -94,7 +92,10 @@ def get_google_transit_route(start_loc, dest_loc):
             path_coords.append({"lat": leg["end_location"]["lat"], "lon": leg["end_location"]["lng"]})
             coords_df = pd.DataFrame(path_coords)
             
-            # 取第一台公車算 TDX 即時動態
+            # 如果整趟路完全沒有公車，給予提示
+            if not has_bus:
+                return {"status": "not_found", "message": "此距離過近或無大眾運輸直達，建議直接步行前往！"}
+            
             eta = "無動態"
             for t in transit_legs:
                 if t["type"] == "TRANSIT":
@@ -108,6 +109,6 @@ def get_google_transit_route(start_loc, dest_loc):
                 "coords": coords_df, "fare": real_fare
             }
         else:
-            return {"status": "not_found", "message": f"找不到大眾運輸路線"}
+            return {"status": "not_found", "message": f"找不到大眾運輸路線，請嘗試距離較遠的地點（例如：清華大學 ➔ 新竹火車站）"}
     except Exception as e:
         return {"status": "error", "message": f"連線錯誤: {e}"}
