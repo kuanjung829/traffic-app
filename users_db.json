@@ -6,7 +6,18 @@
             "is_student": false,
             "school_abbr": "",
             "credit_card": "1234567812345678",
-            "history": []
+            "history": [
+                {
+                    "route": "藍1區間車",
+                    "start": "清華大學",
+                    "end": "新竹火車站",
+                    "fare": 15,
+                    "time": "2026-10-07 20:59:48"
+                }
+            ],
+            "remember_me": false,
+            "balance": 35,
+            "face_verified": false
         },
         "test1@kkhs.hc.edu.tw": {
             "name": "testuser1",
@@ -23,7 +34,9 @@
                     "fare": 12,
                     "time": "2026-10-07 20:34:57"
                 }
-            ]
+            ],
+            "remember_me": false,
+            "face_verified": true
         }
     }
 }

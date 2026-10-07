@@ -9,11 +9,27 @@ def render_auth_page(db):
         with st.form("login_form"):
             email = st.text_input("Gmail (帳號)")
             pwd = st.text_input("密碼", type="password")
+            
+            # ✨ 新增：保持登入勾選框
+            remember_me = st.checkbox("保持登入 (記住我的裝置)")
+            
             submitted = st.form_submit_button("登入", type="primary")
             if submitted:
                 if email in db["users"] and db["users"][email]["pwd"] == pwd:
+                    # 更新資料庫中的保持登入狀態
+                    db["users"][email]["remember_me"] = remember_me
+                    save_db(db)
+                    
                     st.session_state.current_user = email
                     st.session_state.page = "dashboard"
+                    
+                    # 模擬 Cookie 寫入 (透過 Streamlit 內建 query_params 跨頁持久化)
+                    if remember_me:
+                        st.query_params["logged_in_user"] = email
+                    else:
+                        if "logged_in_user" in st.query_params:
+                            del st.query_params["logged_in_user"]
+                            
                     st.rerun()
                 else:
                     st.error("❌ 帳號或密碼錯誤，請先註冊。")
@@ -43,14 +59,14 @@ def render_auth_page(db):
                         except:
                             school_abbr = "Student"
                             
-                    # 建立新會員資料
                     db["users"][new_email] = {
                         "name": new_name,
                         "pwd": new_pwd,
                         "is_student": is_student,
                         "school_abbr": school_abbr,
                         "credit_card": None,
-                        "balance": 50, # ✨ 修改：註冊初始餘額改為 50 元
+                        "balance": 50,
+                        "remember_me": False, # ✨ 初始化保持登入狀態
                         "history": []
                     }
                     save_db(db)

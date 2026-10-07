@@ -1,14 +1,18 @@
+# ui_sidebar.py
 import streamlit as st
 import re
 import time
 from database import save_db
+from ui_face import render_face_verification  # 👈 匯入我們剛剛獨立出去的新模組
 
 def render_sidebar(db, user_email):
     user_data = db["users"][user_email]
     
-    # 確保舊帳號也有餘額欄位
     if "balance" not in user_data:
         user_data["balance"] = 50
+        save_db(db)
+    if "remember_me" not in user_data:
+        user_data["remember_me"] = False
         save_db(db)
 
     st.title("👤 會員專區")
@@ -21,14 +25,16 @@ def render_sidebar(db, user_email):
         st.info("一般帳號 (無優惠)")
         
     st.divider()
-    
-    # 顯示餘額
     st.metric("💳 虛擬錢包餘額", f"NT$ {user_data['balance']}")
     
     st.divider()
+    
+    # 🤖 呼叫獨立的人臉識別模組
+    render_face_verification(db, user_email)
+
+    st.divider()
     st.markdown("### 🔒 支付與儲值管理")
     
-    # 邏輯判斷：尚未綁卡
     if not user_data["credit_card"]:
         st.warning("⚠️ 尚未綁定信用卡")
         with st.expander("💳 點擊展開：綁定信用卡"):
@@ -49,8 +55,6 @@ def render_sidebar(db, user_email):
                     st.success("✅ 信用卡綁定成功！")
                     time.sleep(1)
                     st.rerun()
-                
-    # 邏輯判斷：已經綁卡
     else:
         cc_hidden = f"**** **** **** {user_data['credit_card'][-4:]}"
         st.markdown(f"**已綁定信用卡**：`{cc_hidden}`")
@@ -71,24 +75,29 @@ def render_sidebar(db, user_email):
             
     st.divider()
     
-    # ✨ 新增：歷史乘車紀錄與收據專區
     st.markdown("### 📜 歷史乘車紀錄")
     history_list = user_data.get("history", [])
     if not history_list:
         st.caption("尚無乘車紀錄")
     else:
-        # 用 expander 讓收據可以展開查看詳細資訊
-        for idx, h in enumerate(reversed(history_list[-5:])): # 顯示最近 5 筆
+        for idx, h in enumerate(reversed(history_list[-5:])):
             with st.expander(f"🚍 {h['route']} (-${h['fare']})"):
                 st.caption(f"🕒 {h['time']}")
                 st.write(f"**起點**: {h['start']}")
                 st.write(f"**終點**: {h['end']}")
                 st.write(f"**扣款金額**: NT$ {h['fare']}")
-                st.success("✅ 無感支付完成")
+                st.success("✅ AI 無感支付完成")
                 
     st.divider()
     
     if st.button("🚪 登出系統", use_container_width=True):
+        if user_email in db["users"]:
+            db["users"][user_email]["remember_me"] = False
+            save_db(db)
+            
+        if "logged_in_user" in st.query_params:
+            del st.query_params["logged_in_user"]
+            
         st.session_state.current_user = None
         st.session_state.page = "login"
         st.rerun()

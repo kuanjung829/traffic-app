@@ -1,7 +1,6 @@
 import streamlit as st
-from database import load_db
+from database import load_db, save_db
 
-# 匯入所有的 UI 模組，分工合作
 from ui_auth import render_auth_page
 from ui_sidebar import render_sidebar
 from ui_navigation import render_navigation_tab
@@ -13,6 +12,14 @@ st.set_page_config(page_title="AI 智慧公車系統", page_icon="🚌", layout=
 if "page" not in st.session_state: st.session_state.page = "login"
 if "current_user" not in st.session_state: st.session_state.current_user = None
 
+# ✨ 開機自動檢查：如果有記住登入的 Cookie 且資料庫確認開啟，直接自動登入
+if not st.session_state.current_user:
+    saved_email = st.query_params.get("logged_in_user")
+    if saved_email and saved_email in db["users"]:
+        if db["users"][saved_email].get("remember_me", False):
+            st.session_state.current_user = saved_email
+            st.session_state.page = "dashboard"
+
 # ==========================================
 # 頁面路由器 (Router)
 # ==========================================
@@ -22,7 +29,7 @@ if st.session_state.page == "login":
 elif st.session_state.page == "dashboard":
     user_email = st.session_state.current_user
     
-    # --- 1. 左側會員專區 (呼叫 sidebar 模組) ---
+    # --- 1. 左側會員專區 ---
     with st.sidebar:
         render_sidebar(db, user_email)
 
@@ -38,7 +45,6 @@ elif st.session_state.page == "dashboard":
     st.divider()
     
     # --- 3. 下方功能分頁 ---
-    # 因為信用卡移到左邊了，這裡只需要保留兩個 Tab
     tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
     
     with tab1: 
