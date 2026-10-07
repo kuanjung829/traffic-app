@@ -1,14 +1,11 @@
-# api_services.py
 import requests
 import pandas as pd
 import streamlit as st
+import re
 
-# ==========================================
-# API 金鑰設定
-# ==========================================
 TDX_CLIENT_ID = 'kuanjung829-5b32ef80-7be0-4ebe'
 TDX_CLIENT_SECRET = '98aa31ee-f7d1-408c-af85-8d1887791ad9'
-GOOGLE_MAPS_API_KEY = '請貼上你的GOOGLE_MAPS_API金鑰' 
+GOOGLE_MAPS_API_KEY = 'AIzaSyB9b-PhwXB6nMQFnjFEoa8wDbly0MFdmk0' 
 
 @st.cache_data(ttl=3000)
 def get_tdx_token():
@@ -36,6 +33,10 @@ def get_real_bus_eta(token, route_name, stop_keyword):
     except: pass
     return "預估 8"
 
+def clean_html(raw_html):
+    """清除 Google 走路指示裡的 HTML 標籤"""
+    return re.sub(r'<.*?>', '', raw_html)
+
 def get_google_transit_route(start_loc, dest_loc):
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請貼上你的GOOGLE_MAPS_API金鑰':
         return {"status": "error", "message": "請先填寫 Google API 金鑰！"}
@@ -54,42 +55,59 @@ def get_google_transit_route(start_loc, dest_loc):
         data = res.json()
         
         if data.get("status") == "OK":
-            route = data["routes"][0]["legs"][0]
-            start_coord = route["start_location"]
-            end_coord = route["end_location"]
-            total_duration = route["duration"]["text"]
+            route = data["routes"][0]
+            leg = route["legs"][0]
             
+            # 1. 抓取 Google 算出的真實票價 (如果沒有就預設 15)
+            real_fare = route.get("fare", {}).get("value", 15)
+            
+            total_duration = leg["duration"]["text"]
             transit_legs = []
-            for step in route["steps"]:
+            path_coords = [] # 2. 收集路線座標畫地圖
+            
+            for step in leg["steps"]:
+                path_coords.append({"lat": step["start_location"]["lat"], "lon": step["start_location"]["lng"]})
+                
+                # 分辨是走路還是搭公車
                 if step["travel_mode"] == "TRANSIT":
                     details = step["transit_details"]
                     bus_name = details["line"].get("short_name", details["line"].get("name"))
                     board = details["departure_stop"]["name"]
                     alight = details["arrival_stop"]["name"]
                     num_stops = details.get("num_stops", 0)
+                    dep_time = details.get("departure_time", {}).get("text", "未提供") # 抓取發車時間
+                    
                     transit_legs.append({
+                        "type": "TRANSIT",
                         "bus_name": bus_name, "board": board, 
-                        "alight": alight, "num_stops": num_stops
+                        "alight": alight, "num_stops": num_stops,
+                        "dep_time": dep_time, "duration": step["duration"]["text"]
                     })
+                elif step["travel_mode"] == "WALKING":
+                    instruction = clean_html(step.get("html_instructions", "步行"))
+                    transit_legs.append({
+                        "type": "WALKING",
+                        "instruction": instruction,
+                        "duration": step["duration"]["text"]
+                    })
+                    
+            path_coords.append({"lat": leg["end_location"]["lat"], "lon": leg["end_location"]["lng"]})
+            coords_df = pd.DataFrame(path_coords)
             
-            if transit_legs:
-                first_bus = transit_legs[0]
-                token = get_tdx_token()
-                eta = get_real_bus_eta(token, first_bus["bus_name"], first_bus["board"][:2]) 
+            # 取第一台公車算 TDX 即時動態
+            eta = "無動態"
+            for t in transit_legs:
+                if t["type"] == "TRANSIT":
+                    token = get_tdx_token()
+                    eta = get_real_bus_eta(token, t["bus_name"], t["board"][:2])
+                    break
                 
-                coords_df = pd.DataFrame([
-                    {"lat": start_coord["lat"], "lon": start_coord["lng"], "name": f"起點：{start_loc}"},
-                    {"lat": end_coord["lat"], "lon": end_coord["lng"], "name": f"終點：{dest_loc}"}
-                ])
-                
-                return {
-                    "status": "success", "transit_legs": transit_legs, 
-                    "eta": eta, "travel_time": total_duration, 
-                    "coords": coords_df, "fare": 15 * len(transit_legs)
-                }
-            else:
-                return {"status": "not_found", "message": "這段路程建議直接步行，無需搭車！"}
+            return {
+                "status": "success", "transit_legs": transit_legs, 
+                "eta": eta, "travel_time": total_duration, 
+                "coords": coords_df, "fare": real_fare
+            }
         else:
-            return {"status": "not_found", "message": f"找不到大眾運輸路線 ({data.get('status')})"}
+            return {"status": "not_found", "message": f"找不到大眾運輸路線"}
     except Exception as e:
         return {"status": "error", "message": f"連線錯誤: {e}"}

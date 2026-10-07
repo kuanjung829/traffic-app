@@ -1,0 +1,21 @@
+{
+    "users": {
+        "zonzon@gmail.com": {
+            "name": "zonzon",
+            "pwd": "124578963",
+            "is_student": false,
+            "school_abbr": "",
+            "credit_card": "1234567812345678",
+            "history": []
+        },
+        "test1@kkhs.hc.edu.tw": {
+            "name": "testuser1",
+            "pwd": "123456789",
+            "is_student": true,
+            "school_abbr": "kkhs",
+            "credit_card": "1234567812345678",
+            "balance": 180,
+            "history": []
+        }
+    }
+}

@@ -43,13 +43,15 @@ def render_auth_page(db):
                         except:
                             school_abbr = "Student"
                             
+                    # 建立新會員資料
                     db["users"][new_email] = {
                         "name": new_name,
                         "pwd": new_pwd,
                         "is_student": is_student,
                         "school_abbr": school_abbr,
                         "credit_card": None,
+                        "balance": 50, # ✨ 修改：註冊初始餘額改為 50 元
                         "history": []
                     }
                     save_db(db)
-                    st.success("✅ 註冊成功！請切換至「登入」頁面。")
+                    st.success("✅ 註冊成功！已獲得 NT$ 50 乘車金，請切換至「登入」頁面。")
