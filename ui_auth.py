@@ -1,3 +1,4 @@
+# ui_auth.py
 import streamlit as st
 from database import save_db
 
@@ -9,21 +10,17 @@ def render_auth_page(db):
         with st.form("login_form"):
             email = st.text_input("Gmail (帳號)")
             pwd = st.text_input("密碼", type="password")
-            
-            # ✨ 新增：保持登入勾選框
             remember_me = st.checkbox("保持登入 (記住我的裝置)")
             
             submitted = st.form_submit_button("登入", type="primary")
             if submitted:
                 if email in db["users"] and db["users"][email]["pwd"] == pwd:
-                    # 更新資料庫中的保持登入狀態
                     db["users"][email]["remember_me"] = remember_me
                     save_db(db)
                     
                     st.session_state.current_user = email
                     st.session_state.page = "dashboard"
                     
-                    # 模擬 Cookie 寫入 (透過 Streamlit 內建 query_params 跨頁持久化)
                     if remember_me:
                         st.query_params["logged_in_user"] = email
                     else:
@@ -65,9 +62,11 @@ def render_auth_page(db):
                         "is_student": is_student,
                         "school_abbr": school_abbr,
                         "credit_card": None,
-                        "balance": 50,
-                        "remember_me": False, # ✨ 初始化保持登入狀態
+                        "balance": 0,          # ✨ 創帳號時為 0 塊（防止洗錢）
+                        "phone": None,         # ✨ 手機號碼紀錄
+                        "phone_verified": False, # ✨ 手機驗證狀態
+                        "remember_me": False,
                         "history": []
                     }
                     save_db(db)
-                    st.success("✅ 註冊成功！已獲得 NT$ 50 乘車金，請切換至「登入」頁面。")
+                    st.success("✅ 註冊成功！帳戶餘額 NT$ 0。請登入後至左側綁定手機號碼領取 50 元獎勵金。")

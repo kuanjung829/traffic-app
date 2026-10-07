@@ -37,6 +37,27 @@
             ],
             "remember_me": false,
             "face_verified": true
+        },
+        "test2@gmail.com": {
+            "name": "testuser2",
+            "pwd": "123456",
+            "is_student": false,
+            "school_abbr": "",
+            "credit_card": null,
+            "balance": 20,
+            "phone": "0911111111",
+            "phone_verified": true,
+            "remember_me": true,
+            "history": [
+                {
+                    "route": "藍1區間車",
+                    "start": "磐石高中",
+                    "end": "新竹高商",
+                    "fare": 30,
+                    "time": "2026-10-07 21:21:45"
+                }
+            ],
+            "face_verified": true
         }
     }
 }

@@ -2,17 +2,25 @@
 import streamlit as st
 import re
 import time
+import random
 from database import save_db
-from ui_face import render_face_verification  # 👈 匯入我們剛剛獨立出去的新模組
+from ui_face import render_face_verification
 
 def render_sidebar(db, user_email):
     user_data = db["users"][user_email]
     
+    # 初始化資料庫安全欄位
     if "balance" not in user_data:
-        user_data["balance"] = 50
+        user_data["balance"] = 0
         save_db(db)
     if "remember_me" not in user_data:
         user_data["remember_me"] = False
+        save_db(db)
+    if "phone" not in user_data:
+        user_data["phone"] = None
+        save_db(db)
+    if "phone_verified" not in user_data:
+        user_data["phone_verified"] = False
         save_db(db)
 
     st.title("👤 會員專區")
@@ -29,7 +37,48 @@ def render_sidebar(db, user_email):
     
     st.divider()
     
-    # 🤖 呼叫獨立的人臉識別模組
+    # ✨ 新增：手機號碼驗證與 50 元獎勵機制
+    st.markdown("### 📱 手機號碼驗證 (領取50元)")
+    if user_data["phone_verified"]:
+        masked_phone = user_data["phone"][:4] + "****" + user_data["phone"][-2:]
+        st.success(f"✅ 已綁定手機：`{masked_phone}`")
+    else:
+        st.warning("⚠️ 尚未綁定手機 (完成可獲 NT$ 50)")
+        with st.expander("📱 點擊展開：綁定手機領取 50 元"):
+            phone_input = st.text_input("手機號碼 (10碼，09開頭)", max_chars=10, key="phone_input")
+            
+            if "simulated_otp" not in st.session_state:
+                st.session_state.simulated_otp = None
+            
+            if st.button("發送驗證碼", use_container_width=True):
+                # 判定條件：10碼、前兩碼為 09
+                if not re.match(r"^09\d{8}$", phone_input):
+                    st.error("❌ 格式錯誤！必須為 10 碼純數字且以 09 開頭。")
+                else:
+                    # 隨機生成 6 位數驗證碼
+                    st.session_state.simulated_otp = str(random.randint(100000, 999999))
+                    st.success("驗證碼已發送！請查看下方模擬簡訊。")
+            
+            if st.session_state.simulated_otp:
+                st.info(f"💬 【模擬簡訊】您的 6 位數驗證碼為：**{st.session_state.simulated_otp}**")
+                code_input = st.text_input("輸入 6 位數驗證碼", max_chars=6, key="code_input")
+                
+                if st.button("確認驗證並獲得 50 元", type="primary", use_container_width=True):
+                    if code_input == st.session_state.simulated_otp:
+                        user_data["phone"] = phone_input
+                        user_data["phone_verified"] = True
+                        user_data["balance"] += 50  # 獲得 50 元獎勵
+                        save_db(db)
+                        st.session_state.simulated_otp = None
+                        st.success("🎉 手機號碼綁定成功！已獲得 NT$ 50 註冊獎勵金！")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ 驗證碼錯誤，請重新輸入！")
+
+    st.divider()
+    
+    # 🤖 AI 人臉識別
     render_face_verification(db, user_email)
 
     st.divider()
