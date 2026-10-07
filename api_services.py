@@ -1,11 +1,19 @@
+# api_services.py
 import requests
 import pandas as pd
 import streamlit as st
 import re
 
-TDX_CLIENT_ID = 'kuanjung829-5b32ef80-7be0-4ebe'
-TDX_CLIENT_SECRET = '98aa31ee-f7d1-408c-af85-8d1887791ad9'
-GOOGLE_MAPS_API_KEY = 'AIzaSyB9b-PhwXB6nMQFnjFEoa8wDbly0MFdmk0' 
+# 從 Streamlit 雲端的 Secrets 安全讀取金鑰 (若本機測試則讀取預設防呆)
+try:
+    TDX_CLIENT_ID = st.secrets["TDX_CLIENT_ID"]
+    TDX_CLIENT_SECRET = st.secrets["TDX_CLIENT_SECRET"]
+    GOOGLE_MAPS_API_KEY = st.secrets["GOOGLE_MAPS_API_KEY"]
+except:
+    # 這裡放你本機測試用的預設值 (注意：上傳到 GitHub 前請確保不要外洩真實金鑰，或本機直接用 secrets.toml)
+    TDX_CLIENT_ID = 'kuanjung829-5b32ef80-7be0-4ebe'
+    TDX_CLIENT_SECRET = '98aa31ee-f7d1-408c-af85-8d1887791ad9'
+    GOOGLE_MAPS_API_KEY = '請填寫你的GOOGLE_MAPS_API金鑰'
 
 @st.cache_data(ttl=3000)
 def get_tdx_token():
@@ -37,8 +45,8 @@ def clean_html(raw_html):
     return re.sub(r'<.*?>', '', raw_html)
 
 def get_google_transit_route(start_loc, dest_loc):
-    if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請貼上你的GOOGLE_MAPS_API金鑰':
-        return {"status": "error", "message": "請先填寫 Google API 金鑰！"}
+    if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
+        return {"status": "error", "message": "尚未設定 Google API 金鑰！"}
 
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
@@ -92,7 +100,6 @@ def get_google_transit_route(start_loc, dest_loc):
             path_coords.append({"lat": leg["end_location"]["lat"], "lon": leg["end_location"]["lng"]})
             coords_df = pd.DataFrame(path_coords)
             
-            # 如果整趟路完全沒有公車，給予提示
             if not has_bus:
                 return {"status": "not_found", "message": "此距離過近或無大眾運輸直達，建議直接步行前往！"}
             
@@ -109,6 +116,6 @@ def get_google_transit_route(start_loc, dest_loc):
                 "coords": coords_df, "fare": real_fare
             }
         else:
-            return {"status": "not_found", "message": f"找不到大眾運輸路線，請嘗試距離較遠的地點（例如：清華大學 ➔ 新竹火車站）"}
+            return {"status": "not_found", "message": f"找不到大眾運輸路線，請嘗試距離較遠的地點"}
     except Exception as e:
         return {"status": "error", "message": f"連線錯誤: {e}"}
