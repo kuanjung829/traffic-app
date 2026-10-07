@@ -1,221 +1,77 @@
-import time
-import requests
-import pandas as pd
 import streamlit as st
+from database import load_db, save_db
 
-# 👇 改成匯入地點節點庫
-from routes_db import LOCATIONS
+# 匯入我們剛剛拆分出去的 UI 模組
+from ui_auth import render_auth_page
+from ui_payment import render_payment_tab
+from ui_navigation import render_navigation_tab
 
-# ==========================================
-# 核心模組一：TDX 真實交通數據 API 串接
-# ==========================================
-CLIENT_ID = 'kuanjung829-5b32ef80-7be0-4ebe'
-CLIENT_SECRET = '98aa31ee-f7d1-408c-af85-8d1887791ad9'
+# 初始化資料庫
+db = load_db()
 
-@st.cache_data(ttl=3000) 
-def get_tdx_token():
-    auth_url = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
-    data = {'grant_type': 'client_credentials', 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET}
-    try:
-        res = requests.post(auth_url, data=data)
-        if res.status_code == 200:
-            return res.json().get('access_token')
-    except Exception as e:
-        pass
-    return None
+# 網頁基礎設定
+st.set_page_config(page_title="AI 智慧公車系統", page_icon="🚌", layout="wide")
 
-def get_real_bus_eta(token, route_name, stop_keyword):
-    if not token: return "預估 5"
-    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/Hsinchu/{route_name}?$format=JSON"
-    headers = {'authorization': f'Bearer {token}'}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            for item in res.json():
-                stop_name = item.get("StopName", {}).get("Zh_tw", "")
-                if stop_keyword in stop_name and "EstimateTime" in item:
-                    wait_mins = int(item["EstimateTime"]) // 60
-                    return f"即時 {wait_mins}" if wait_mins > 0 else "即將進站"
-            return "未發車"
-    except:
-        pass
-    return "預估 8"
+if "page" not in st.session_state: st.session_state.page = "login"
+if "current_user" not in st.session_state: st.session_state.current_user = None
 
 # ==========================================
-# 核心模組二：動態 N 對 N 路線演算法
+# 頁面路由器 (Router) - 決定現在要顯示哪個畫面
 # ==========================================
-def find_location_data(user_input: str):
-    """輔助函式：根據使用者輸入的關鍵字，找出對應的地點資料"""
-    for key, data in LOCATIONS.items():
-        if any(kw in user_input for kw in data["keywords"]) or key in user_input:
-            return data
-    return None
-
-def find_bus_routes(start_loc: str, dest_loc: str) -> dict:
-    """動態配對起迄點，並組合路線與地圖座標"""
-    token = get_tdx_token()
+if st.session_state.page == "login":
+    render_auth_page(db) # 呼叫登入模組
     
-    # 解析出發地與目的地
-    start_data = find_location_data(start_loc)
-    dest_data = find_location_data(dest_loc)
+elif st.session_state.page == "dashboard":
+    user_email = st.session_state.current_user
+    user_data = db["users"][user_email]
     
-    # 判斷是否成功找到地點
-    if start_data and dest_data:
-        # 防呆：起迄點不能相同
-        if start_data["name"] == dest_data["name"]:
-            return {"status": "not_found", "message": "出發地與目的地不能相同，請重新輸入！"}
-            
-        # 動態抓取起點的預設公車與 TDX 即時動態
-        bus_name = start_data["default_bus"]
-        stop_keyword = start_data["default_stop"]
-        eta = get_real_bus_eta(token, bus_name, stop_keyword)
-        
-        # 動態生成路線選項
-        route_options = [{
-            "option_id": 1,
-            "bus_route_name": bus_name,
-            "boarding_stop": start_data["name"],
-            "alighting_stop": dest_data["name"],
-            "estimated_wait": eta,
-            "travel_time_mins": 15, # 模擬預設車程 15 分鐘
-            "fare": 15
-        }]
-        
-        # 動態生成地圖座標點
-        coords_df = pd.DataFrame([
-            {"lat": start_data["lat"], "lon": start_data["lon"], "name": f"起點：{start_data['name']}"},
-            {"lat": dest_data["lat"], "lon": dest_data["lon"], "name": f"終點：{dest_data['name']}"}
-        ])
-        
-        return {
-            "status": "success",
-            "route_options": route_options,
-            "coords": coords_df
-        }
-    else:
-        # 如果輸入了不認識的地點，動態列出資料庫支援的清單
-        supported_dests = "、".join([data["name"] for data in LOCATIONS.values()])
-        return {"status": "not_found", "message": f"目前資料庫尚未收錄此地點。請嘗試以下地點互相組合：\n\n{supported_dests}"}
-
-# ==========================================
-# 前端介面設計 (Streamlit UI)
-# ==========================================
-st.set_page_config(page_title="AI 智慧公車導航", page_icon="🚌", layout="wide")
-
-if "step" not in st.session_state: st.session_state.step = "search"
-if "selected_route" not in st.session_state: st.session_state.selected_route = None
-if "wallet_balance" not in st.session_state: st.session_state.wallet_balance = 500
-if "ride_history" not in st.session_state: st.session_state.ride_history = []
-
-with st.sidebar:
-    st.title("👤 會員專區")
-    st.markdown("### 何冠融")
-    st.caption("🏫 磐石高中 | 學生帳戶")
-    st.divider()
-    
-    st.metric("💳 虛擬錢包餘額", f"NT$ {st.session_state.wallet_balance}")
-    st.markdown("✅ **綁定支付**：中華電信帳單代收")
-    st.markdown("✅ **身分優惠**：學生票已啟用")
-    
-    st.divider()
-    st.markdown("### 📜 歷史乘車紀錄")
-    if not st.session_state.ride_history:
-        st.info("尚無搭乘紀錄")
-    else:
-        for ride in reversed(st.session_state.ride_history):
-            st.markdown(f"- **{ride['route']}**: {ride['start']}➔{ride['end']} <span style='color:red;'>(-${ride['fare']})</span>", unsafe_allow_html=True)
-            st.caption(f"🕒 {ride['time']}")
-
-st.title("🚌 AI 智慧公車無感支付與動態導航")
-st.caption("🟢 已成功連線至交通部 TDX 運輸資料流通服務，提供即時公車動態")
-
-col1, col2 = st.columns(2)
-with col1:
-    start_input = st.text_input("📍 目前位置 / 出發地", placeholder="例如：清華大學")
-with col2:
-    dest_input = st.text_input("🏁 您想去哪裡 (目的地)？", placeholder="例如：城隍廟")
-
-if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
-    if start_input and dest_input:
-        st.session_state.start_loc = start_input
-        st.session_state.dest_loc = dest_input
-        with st.spinner("AI 運算與連線 TDX 抓取即時車況中..."):
-            st.session_state.route_result = find_bus_routes(start_input, dest_input)
-        st.session_state.step = "search_done"
-    else:
-        st.error("⚠️ 請確保出發地與目的地都已填寫！")
-
-if "dest_loc" in st.session_state and st.session_state.step in ["search_done", "search"]:
-    route_result = st.session_state.route_result
-    
-    if route_result["status"] == "success":
-        st.success(f"✅ AI 成功為您規劃：**{st.session_state.start_loc}** ➔ **{st.session_state.dest_loc}**")
-        
-        map_col, route_col = st.columns([1.2, 1])
-        with map_col:
-            st.subheader("🗺️ 即時動態導航地圖")
-            st.map(route_result["coords"], zoom=13, use_container_width=True)
-            
-        with route_col:
-            st.subheader("💡 推薦搭乘路線")
-            for opt in route_result["route_options"]:
-                with st.container(border=True):
-                    st.markdown(f"### 🚍 {opt['bus_route_name']}")
-                    wait_time_display = f"{opt['estimated_wait']} 分鐘" if "即時" in opt['estimated_wait'] else opt['estimated_wait']
-                    st.markdown(f"**預估等候**: `{wait_time_display}` | **車程**: `{opt['travel_time_mins']} 分鐘`")
-                    st.text(f"📍 {opt['boarding_stop']} ➔ {opt['alighting_stop']}")
-                    
-                    if st.button(f"確認搭乘 ({opt['bus_route_name']})", key=f"btn_{opt['option_id']}", use_container_width=True):
-                        st.session_state.selected_route = opt
-                        st.session_state.step = "payment_simulation"
-                        st.rerun()
-    else:
-        st.warning(route_result["message"])
-
-if st.session_state.step == "payment_simulation":
-    opt = st.session_state.selected_route
-    st.markdown("---")
-    st.subheader("🔄 車載 Edge AI 感應與無感支付進行中...")
-    
-    with st.status("正在與車載系統建立連線...", expanded=True) as status:
-        st.write("📡 階段 1/3：已向後端寫入待扣款狀態 (`Ready to Board`)")
-        time.sleep(0.8)
-        st.write(f"🚌 階段 2/3：車載 AI 鏡頭與手機藍牙訊號比對中 (班次: {opt['bus_route_name']})...")
-        time.sleep(1.0)
-        st.write("✨ 階段 3/3：身分特徵匹配成功！正在自動觸發電子支付...")
-        time.sleep(0.8)
-        
-        if st.session_state.wallet_balance >= opt['fare']:
-            st.session_state.wallet_balance -= opt['fare']
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            st.session_state.ride_history.append({
-                "route": opt['bus_route_name'],
-                "start": opt['boarding_stop'],
-                "end": opt['alighting_stop'],
-                "fare": opt['fare'],
-                "time": current_time
-            })
-            status.update(label="🎉 無感支付與乘車綁定成功！", state="complete", expanded=False)
-            st.balloons()
-            payment_success = True
+    # --- 左側會員專區 ---
+    with st.sidebar:
+        st.title("👤 會員專區")
+        if user_data["is_student"]:
+            st.markdown(f"### {user_data['school_abbr']} ({user_data['name']})")
+            st.success("✅ 身分優惠：學生票已啟用")
         else:
-            status.update(label="❌ 餘額不足，扣款失敗！", state="error", expanded=False)
-            payment_success = False
+            st.markdown(f"### {user_data['name']}")
+            st.info("一般帳號 (無優惠)")
+        
+        st.divider()
+        st.markdown("### 💳 支付管理")
+        if user_data["credit_card"]:
+            cc_hidden = f"**** **** **** {user_data['credit_card'][-4:]}"
+            st.markdown(f"**已綁定信用卡**：`{cc_hidden}`")
+            if st.button("❌ 解除綁定信用卡", use_container_width=True):
+                db["users"][user_email]["credit_card"] = None
+                save_db(db)
+                st.rerun()
+        else:
+            st.warning("⚠️ 尚未綁定信用卡")
+            
+        st.divider()
+        if st.button("🚪 登出系統", use_container_width=True):
+            st.session_state.current_user = None
+            st.session_state.page = "login"
+            st.rerun()
 
-    if payment_success:
-        with st.container(border=True):
-            st.markdown("### 💳 數位乘車憑證與交易收據")
-            st.markdown(f"- **搭乘班次**：`{opt['bus_route_name']}`")
-            st.markdown(f"- **乘車區間**：{opt['boarding_stop']} ➔ {opt['alighting_stop']}")
-            st.markdown(f"- **扣款金額**：**NT$ {opt['fare']} 元**")
-            st.markdown("- **支付狀態**：<span style='color:green;'>**已自動扣款 (無感支付完成)**</span>", unsafe_allow_html=True)
-            st.markdown(f"- **帳戶剩餘餘額**：NT$ {st.session_state.wallet_balance} 元")
+    # --- 右側主畫面 (交通工具與功能切換) ---
+    st.title("選擇搭乘交通工具")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button("🚌\n\n公車系統", use_container_width=True, type="primary"): pass
+    with col2: st.button("🚇\n\n捷運 (鎖定)", use_container_width=True, disabled=True)
+    with col3: st.button("🚂\n\n火車 (鎖定)", use_container_width=True, disabled=True)
+    with col4: st.button("🚲\n\nYouBike (鎖定)", use_container_width=True, disabled=True)
+    
+    st.divider()
+    
+    # 三個主要功能分頁
+    tab1, tab2, tab3 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線", "💳 綁定信用卡"])
+    
+    with tab1:
+        render_navigation_tab(db, user_email) # 呼叫導航模組
         
-        st.info("💡 提示：您已可直接上車找位子坐，無需刷任何卡片或條碼！請注意左側邊欄餘額已即時更新。")
-    else:
-        st.error("請儲值您的虛擬錢包後再試一次。")
+    with tab2:
+        st.info("🚧 此功能還在開發中，敬請期待！將來可直接顯示定位點半徑 500 公尺內的站牌動態。")
         
-    if st.button("🔄 完成這趟旅程，返回首頁"):
-        st.session_state.step = "search"
-        st.session_state.selected_route = None
-        st.rerun()
+    with tab3:
+        render_payment_tab(db, user_email) # 呼叫信用卡模組
