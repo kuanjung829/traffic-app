@@ -19,27 +19,10 @@ def get_tdx_token():
     auth_url = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
     data = {'grant_type': 'client_credentials', 'client_id': TDX_CLIENT_ID, 'client_secret': TDX_CLIENT_SECRET}
     try:
-        res = requests.post(auth_url, data=data, timeout=2)
+        res = requests.post(auth_url, data=data, timeout=3)
         if res.status_code == 200: return res.json().get('access_token')
     except: pass
     return None
-
-def get_real_bus_eta(token, route_name, stop_keyword):
-    if not token: return "預估 5 分"
-    priority_cities = ["Taipei", "NewTaipei", "Taoyuan", "Taichung", "Kaohsiung", "Hsinchu", "HsinchuCounty"]
-    for city in priority_cities:
-        url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/{city}/{route_name}?$format=JSON"
-        headers = {'authorization': f'Bearer {token}'}
-        try:
-            res = requests.get(url, headers=headers, timeout=1)
-            if res.status_code == 200 and res.json():
-                for item in res.json():
-                    stop_name = item.get("StopName", {}).get("Zh_tw", "")
-                    if stop_keyword in stop_name and "EstimateTime" in item:
-                        wait_mins = int(item["EstimateTime"]) // 60
-                        return f"即時 {wait_mins} 分" if wait_mins > 0 else "即將進站"
-        except: pass
-    return "即時 3 分"
 
 def clean_html(raw_html):
     return re.sub(r'<.*?>', '', raw_html)
@@ -98,10 +81,10 @@ def get_google_transit_route(start_loc, dest_loc):
                 return {"status": "not_found", "message": "此距離過近或無大眾運輸直達，建議直接步行前往！"}
             
             eta = "即時 3 分"
+            token = get_tdx_token()
             for t in transit_legs:
                 if t["type"] == "TRANSIT":
-                    token = get_tdx_token()
-                    eta = get_real_bus_eta(token, t["bus_name"], t["board"][:2])
+                    eta = get_real_bus_eta_by_name(token, t["bus_name"], t["board"][:2])
                     break
             return {
                 "status": "success", "transit_legs": transit_legs, 
@@ -112,6 +95,23 @@ def get_google_transit_route(start_loc, dest_loc):
             return {"status": "not_found", "message": f"找不到大眾運輸路線 ({data.get('status')}): 請確認起迄點名稱正確"}
     except Exception as e:
         return {"status": "error", "message": f"連線逾時或錯誤: {e}"}
+
+def get_real_bus_eta_by_name(token, route_name, stop_keyword):
+    if not token: return "預估 5 分"
+    priority_cities = ["Hsinchu", "Taipei", "NewTaipei", "Taoyuan", "Taichung", "Kaohsiung"]
+    for city in priority_cities:
+        url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/{city}/{route_name}?$format=JSON"
+        headers = {'authorization': f'Bearer {token}'}
+        try:
+            res = requests.get(url, headers=headers, timeout=2)
+            if res.status_code == 200 and res.json():
+                for item in res.json():
+                    stop_name = item.get("StopName", {}).get("Zh_tw", "")
+                    if stop_keyword in stop_name and "EstimateTime" in item:
+                        wait_mins = int(item["EstimateTime"]) // 60
+                        return f"即時 {wait_mins} 分" if wait_mins > 0 else "即將進站"
+        except: pass
+    return "即時 3 分"
 
 def get_location_coordinates(address):
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
@@ -126,87 +126,77 @@ def get_location_coordinates(address):
     except: pass
     return None
 
-def get_nearby_stops(token, lat, lon, radius=3000):
-    if not token: return []
-    
-    cities = ["Hsinchu", "Taipei", "Taichung"]
-    nearby_results = []
-    
-    for city in cities:
-        url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/City/{city}?$format=JSON"
-        headers = {'authorization': f'Bearer {token}'}
-        try:
-            res = requests.get(url, headers=headers, timeout=4)
-            if res.status_code == 200:
-                for stop in res.json():
-                    pos = stop.get("StopPosition", {})
-                    s_lat, s_lon = pos.get("PositionLat"), pos.get("PositionLon")
-                    if s_lat and s_lon:
-                        # 簡易計算距離
-                        R = 6371000
-                        d_phi = math.radians(s_lat - lat)
-                        d_lambda = math.radians(s_lon - lon)
-                        a = math.sin(d_phi/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(s_lat)) * math.sin(d_lambda/2)**2
-                        dist = R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-                        if dist <= radius:
-                            stop_copy = stop.copy()
-                            stop_copy["distance"] = int(dist)
-                            nearby_results.append(stop_copy)
-        except: pass
-        
-    # 🌟 保險機制：如果 API 因為網路或權限抓不到，直接回傳新竹火車站的標準預設站牌，確保 Demo 絕對成功！
-    if not nearby_results:
-        return [
-            {
-                "StopUID": "Hsinchu_1001", 
-                "StopID": "1", 
-                "StopName": {"Zh_tw": "新竹火車站 (中正路)"},
-                "distance": 120
-            },
-            {
-                "StopUID": "Hsinchu_1002", 
-                "StopID": "2", 
-                "StopName": {"Zh_tw": "東門市場"},
-                "distance": 350
-            },
-            {
-                "StopUID": "Hsinchu_1003", 
-                "StopID": "3", 
-                "StopName": {"Zh_tw": "新竹客運總站"},
-                "distance": 480
-            }
-        ]
-        
-    nearby_results.sort(key=lambda x: x["distance"])
-    return nearby_results[:10]
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371000  # 地球半徑 (公尺)
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
-def get_stop_eta(token, stop_id):
-    # 保險機制：如果是預設的測試站牌，直接回傳漂亮的即時動態模擬
-    if "Hsinchu_" in str(stop_id):
-        return [
-            {"route": "20號公車 (往清大)", "eta": "即將進站"},
-            {"route": "18號公車 (往竹科)", "eta": "3 分鐘"},
-            {"route": "5608 苗栗客運", "eta": "7 分鐘"}
-        ]
-        
+@st.cache_data(ttl=3600)
+def fetch_city_stops(token, city):
     if not token: return []
-    priority_cities = ["Hsinchu", "Taipei", "Taichung"]
-    routes_eta = []
-    for city in priority_cities:
-        url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/{city}?$filter=StopUID eq '{stop_id}'&$format=JSON"
-        headers = {'authorization': f'Bearer {token}'}
-        try:
-            res = requests.get(url, headers=headers, timeout=2)
-            if res.status_code == 200 and res.json():
-                for item in res.json():
-                    route_name = item.get("RouteName", {}).get("Zh_tw", "未知路線")
-                    if "EstimateTime" in item:
-                        wait_mins = int(item["EstimateTime"]) // 60
-                        eta_text = f"{wait_mins} 分鐘" if wait_mins > 0 else "即將進站"
-                    else:
-                        eta_text = "未發車"
-                    if not any(r['route'] == route_name for r in routes_eta):
-                        routes_eta.append({"route": route_name, "eta": eta_text})
-        except: pass
-        if routes_eta: break
-    return routes_eta
+    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/City/{city}?$format=JSON"
+    headers = {'authorization': f'Bearer {token}'}
+    try:
+        res = requests.get(url, headers=headers, timeout=6)
+        if res.status_code == 200:
+            return res.json()
+    except: pass
+    return []
+
+def get_nearby_stops(token, lat, lon, radius=1000):
+    """根據經緯度動態向 TDX 查詢真實縣市站牌，計算 1 公里內的實體站牌"""
+    if not token: return []
+    
+    # 根據緯度自動判斷所屬縣市，節省查詢時間
+    target_cities = ["Hsinchu", "HsinchuCounty"]
+    if lat > 24.9: # 偏北
+        target_cities = ["Taipei", "NewTaipei", "Taoyuan"]
+    elif lat < 24.3: # 偏南
+        target_cities = ["Taichung", "Kaohsiung"]
+
+    nearby_results = []
+    for city in target_cities:
+        stops = fetch_city_stops(token, city)
+        for stop in stops:
+            pos = stop.get("StopPosition", {})
+            s_lat, s_lon = pos.get("PositionLat"), pos.get("PositionLon")
+            if s_lat and s_lon:
+                dist = calculate_distance(lat, lon, s_lat, s_lon)
+                if dist <= radius:
+                    stop_copy = stop.copy()
+                    stop_copy["city"] = city
+                    stop_copy["distance"] = int(dist)
+                    nearby_results.append(stop_copy)
+                    
+    nearby_results.sort(key=lambda x: x["distance"])
+    return nearby_results[:10] # 回傳真實最近的 10 個站牌
+
+def get_stop_eta(token, city, stop_uid):
+    """向 TDX 真實查詢該站牌 UID 的所有公車即時預估到站時間"""
+    if not token: return []
+    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/{city}?$filter=StopUID eq '{stop_uid}'&$format=JSON"
+    headers = {'authorization': f'Bearer {token}'}
+    try:
+        res = requests.get(url, headers=headers, timeout=3)
+        if res.status_code == 200 and res.json():
+            routes_eta = []
+            for item in res.json():
+                route_name = item.get("RouteName", {}).get("Zh_tw", "未知路線")
+                if "EstimateTime" in item:
+                    wait_mins = int(item["EstimateTime"]) // 60
+                    eta_text = f"即時 {wait_mins} 分鐘" if wait_mins > 0 else "即將進站"
+                else:
+                    status = item.get("StopStatus", 0)
+                    if status == 1: eta_text = "尚未發車"
+                    elif status == 2: eta_text = "交管不停靠"
+                    elif status == 3: eta_text = "末班車已過"
+                    else: eta_text = "營運中 (未發車)"
+                    
+                routes_eta.append({"route": route_name, "eta": eta_text})
+            return routes_eta
+    except: pass
+    return []

@@ -104,15 +104,15 @@ def render_navigation_tab(db, user_email):
             st.warning(result["message"])
 
 def render_nearby_tab():
-    st.subheader("📍 附近站牌與路線動態")
+    st.subheader("📍 真實 TDX 附近站牌與動態查詢")
     location_input = st.text_input("輸入您目前的地點或地址", placeholder="例如：新竹火車站 或 台北車站")
     
-    if st.button("🔍 搜尋附近站牌", type="primary", use_container_width=True):
+    if st.button("🔍 搜尋附近真實站牌", type="primary", use_container_width=True):
         if not location_input:
             st.warning("請先輸入地點！")
             return
             
-        with st.spinner("🌍 正在尋找附近的站牌與即時動態..."):
+        with st.spinner("🌍 正在向 TDX 雲端資料庫調閱真實站牌與坐標計算..."):
             coords = get_location_coordinates(location_input)
             if not coords:
                 st.error("❌ 找不到該地點，請嘗試輸入更完整的地址或地標。")
@@ -122,33 +122,33 @@ def render_nearby_tab():
             token = get_tdx_token()
             nearby_stops = get_nearby_stops(token, lat, lon)
             
-            # 🌟 保險機制：不管怎樣強制提供展示用的站牌，確保一定能秀出結果
             if not nearby_stops:
-                nearby_stops = [
-                    {"StopUID": "Hsinchu_1001", "StopID": "1", "StopName": {"Zh_tw": f"{location_input} - 核心轉運站牌"}, "distance": 80},
-                    {"StopUID": "Hsinchu_1002", "StopID": "2", "StopName": {"Zh_tw": f"{location_input} - 中正路口站"}, "distance": 210},
-                    {"StopUID": "Hsinchu_1003", "StopID": "3", "StopName": {"Zh_tw": f"{location_input} - 民族路口站"}, "distance": 450}
-                ]
+                st.warning("😅 在該地點 1 公里內沒有找到公車站牌，請嘗試其他地點。")
+                return
                 
-            st.success(f"📍 成功找到 `{location_input}` 附近共 {len(nearby_stops)} 個站牌：")
+            st.success(f"📍 成功在 `{location_input}` 附近找到 {len(nearby_stops)} 個真實 TDX 站牌：")
             
             unique_stops = {}
             for stop in nearby_stops:
                 name = stop.get("StopName", {}).get("Zh_tw")
-                if not name: continue
+                uid = stop.get("StopUID")
+                city = stop.get("city")
+                dist = stop.get("distance", 0)
+                if not name or not uid: continue
                 if name not in unique_stops:
                     unique_stops[name] = {
-                        "uid": stop.get("StopUID"),
-                        "address": f"距離大約 {stop.get('distance', 100)} 公尺"
+                        "uid": uid,
+                        "city": city,
+                        "address": f"距離大約 {dist} 公尺"
                     }
                     
             for name, info in unique_stops.items():
                 with st.expander(f"🚏 {name} ({info['address']})"):
-                    if st.button(f"查詢 {name} 路線動態", key=f"btn_{info['uid']}"):
-                        with st.spinner("獲取動態中..."):
-                            etas = get_stop_eta(token, info['uid'])
+                    if st.button(f"查詢 {name} 即時動態", key=f"btn_{info['uid']}"):
+                        with st.spinner("📡 正在向 TDX 獲取真實車班動態..."):
+                            etas = get_stop_eta(token, info['city'], info['uid'])
                             if etas:
                                 for eta_info in etas:
                                     st.write(f"🚍 **{eta_info['route']}**：`{eta_info['eta']}`")
                             else:
-                                st.write("目前沒有車輛資訊。")
+                                st.info("目前該站牌無行駛中的公車或尚未發車。")
