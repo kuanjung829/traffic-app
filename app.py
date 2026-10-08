@@ -3,7 +3,8 @@ from database import load_db
 
 from ui_auth import render_auth_page
 from ui_sidebar import render_sidebar
-from ui_navigation import render_navigation_tab
+# 確保我們在這裡同時引入了兩個 tab 的函式
+from ui_navigation import render_navigation_tab, render_nearby_tab 
 
 db = load_db()
 
@@ -75,21 +76,12 @@ elif st.session_state.page == "dashboard":
     with col4: st.button("🚲\n\nYouBike (敬請期待)", use_container_width=True, disabled=True)
     
     st.divider()
+    
+    # 這裡確保只會畫出「一次」分頁
     tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
     
     with tab1: 
         render_navigation_tab(db, user_email)
         
     with tab2: 
-        st.info("🚧 此功能還在開發中，敬請期待！將來可直接顯示附近站牌動態。")
-    # (在 app.py 檔案的最底下)
-    st.divider()
-    tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
-    
-    with tab1: 
-        render_navigation_tab(db, user_email)
-        
-    with tab2: 
-        # ✨ 從 ui_navigation.py 匯入並呼叫新的 render_nearby_tab
-        from ui_navigation import render_nearby_tab
-        render_nearby_tab()  
+        render_nearby_tab()
