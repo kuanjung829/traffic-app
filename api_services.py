@@ -8,8 +8,8 @@ try:
     TDX_CLIENT_SECRET = st.secrets["TDX_CLIENT_SECRET"]
     GOOGLE_MAPS_API_KEY = st.secrets["GOOGLE_MAPS_API_KEY"]
 except:
-    TDX_CLIENT_ID = 'kuanjung829-5b32ef80-7be0-4ebe'
-    TDX_CLIENT_SECRET = '98aa31ee-f7d1-408c-af85-8d1887791ad9'
+    TDX_CLIENT_ID = '請填寫你的TDX_CLIENT_ID金鑰'
+    TDX_CLIENT_SECRET = '請填寫你的TDX_CLIENT_SECRET金鑰'
     GOOGLE_MAPS_API_KEY = '請填寫你的GOOGLE_MAPS_API金鑰'
 
 @st.cache_data(ttl=3000)

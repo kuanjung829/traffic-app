@@ -66,7 +66,8 @@
                     "time": "2026-10-08 20:12:39"
                 }
             ],
-            "face_verified": false
+            "face_verified": true,
+            "face_image_path": "face_photos/test2_gmail_com.jpg"
         }
     }
 }

@@ -4,7 +4,7 @@ import re
 import time
 import random
 from database import save_db
-from ui_face import face_dialog # 匯入剛剛改好的彈出視窗
+from ui_face import face_dialog
 
 # ==========================================
 # 定義所有的中央彈出視窗 (Dialogs)
@@ -36,8 +36,8 @@ def phone_dialog(db, user_email):
                 save_db(db)
                 st.session_state.simulated_otp = None
                 st.success("🎉 手機綁定成功！已獲 NT$ 50。視窗將自動關閉...")
-                time.sleep(2) # 停留 2 秒
-                st.rerun()    # 關閉視窗刷新
+                time.sleep(2)
+                st.rerun()
             else:
                 st.error("❌ 驗證碼錯誤，請重新輸入！")
 
@@ -93,11 +93,13 @@ def history_dialog(db, user_email):
 def render_sidebar(db, user_email):
     user_data = db["users"][user_email]
     
+    # 初始化資料庫欄位 (加入照片路徑)
     if "balance" not in user_data: user_data["balance"] = 0
     if "remember_me" not in user_data: user_data["remember_me"] = False
     if "phone" not in user_data: user_data["phone"] = None
     if "phone_verified" not in user_data: user_data["phone_verified"] = False
     if "face_verified" not in user_data: user_data["face_verified"] = False
+    if "face_image_path" not in user_data: user_data["face_image_path"] = "" # ✨ 新增：照片路徑
     save_db(db)
 
     st.title("👤 會員專區")
@@ -121,22 +123,28 @@ def render_sidebar(db, user_email):
     else:
         st.warning("⚠️ 尚未綁定手機")
         if st.button("👉 前往綁定手機", use_container_width=True):
-            phone_dialog(db, user_email) # 點擊後彈出視窗
+            phone_dialog(db, user_email)
 
     st.divider()
     
-    # 🤖 2. 人臉識別區塊
-    st.markdown("### 🤖 AI 人臉識別")
+    # 🤖 2. 真實 AI 人臉識別區塊
+    st.markdown("### 🤖 真實人臉識別")
     if user_data["face_verified"]:
-        st.success("✅ 已驗證 (解鎖無感支付)")
-        if st.button("🔄 重新人臉校正", use_container_width=True):
+        st.success("✅ 已完成生物驗證")
+        
+        # ✨ 新增：如果在資料庫有存到照片路徑，就在側邊欄顯示出來！
+        if user_data.get("face_image_path"):
+            st.image(user_data["face_image_path"], caption="您的人臉特徵", width=120)
+            
+        if st.button("🔄 重新人臉拍照校正", use_container_width=True):
             user_data["face_verified"] = False
+            user_data["face_image_path"] = ""
             save_db(db)
             st.rerun()
     else:
-        st.warning("⚠️ 尚未進行驗證")
-        if st.button("👉 開始人臉建模", use_container_width=True):
-            face_dialog(db, user_email) # 點擊後彈出視窗
+        st.warning("⚠️ 尚未進行拍照驗證")
+        if st.button("👉 啟動鏡頭開始建模", use_container_width=True):
+            face_dialog(db, user_email)
 
     st.divider()
     
@@ -145,13 +153,13 @@ def render_sidebar(db, user_email):
     if not user_data.get("credit_card"):
         st.warning("⚠️ 尚未綁定信用卡")
         if st.button("👉 前往綁定信用卡", use_container_width=True):
-            credit_card_dialog(db, user_email) # 點擊後彈出視窗
+            credit_card_dialog(db, user_email)
     else:
         cc_hidden = f"**** **** **** {user_data['credit_card'][-4:]}"
         st.markdown(f"**已綁定**：`{cc_hidden}`")
         
         if st.button("💰 前往儲值中心", use_container_width=True):
-            topup_dialog(db, user_email) # 點擊後彈出視窗
+            topup_dialog(db, user_email)
             
         if st.button("❌ 解除綁定", use_container_width=True):
             db["users"][user_email]["credit_card"] = None
@@ -163,7 +171,7 @@ def render_sidebar(db, user_email):
     # 📜 4. 歷史紀錄
     st.markdown("### 📜 乘車紀錄")
     if st.button("🧾 查看歷史乘車明細", use_container_width=True):
-        history_dialog(db, user_email) # 點擊後彈出視窗
+        history_dialog(db, user_email)
                 
     st.divider()
     
