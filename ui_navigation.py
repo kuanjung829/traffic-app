@@ -114,6 +114,9 @@ def render_nearby_tab():
             
         with st.spinner("🌍 正在尋找附近的站牌..."):
             coords = get_location_coordinates(location_input)
+            # --- 加入這行除錯碼 ---
+            st.write(f"除錯訊息：抓到的經緯度是 {coords}")
+            # --------------------
             if not coords:
                 st.error("❌ 找不到該地點，請嘗試輸入更完整的地址或地標。")
                 return
