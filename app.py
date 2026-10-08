@@ -1,14 +1,14 @@
+# app.py
 import streamlit as st
 from database import load_db
 
 from ui_auth import render_auth_page
 from ui_sidebar import render_sidebar
-# 確保我們在這裡同時引入了兩個 tab 的函式
-from ui_navigation import render_navigation_tab, render_nearby_tab 
+from ui_navigation import render_navigation_tab 
 
 db = load_db()
 
-st.set_page_config(page_title="AI 智慧公車系統", page_icon="🚌", layout="wide")
+st.set_page_config(page_title="AI 智慧公車與路線導航系統", page_icon="🚌", layout="wide")
 
 # UI 美化 CSS 魔法
 def set_custom_css():
@@ -77,11 +77,5 @@ elif st.session_state.page == "dashboard":
     
     st.divider()
     
-    # 這裡確保只會畫出「一次」分頁
-    tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
-    
-    with tab1: 
-        render_navigation_tab(db, user_email)
-        
-    with tab2: 
-        render_nearby_tab()
+    # 直接渲染專注於起迄點與時間段規劃的主導航介面
+    render_navigation_tab(db, user_email)
