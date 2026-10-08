@@ -128,14 +128,15 @@ def render_nearby_tab():
                 
             st.success(f"找到了！ {location_input} 附近有 {len(nearby_stops)} 個站牌：")
             
+            # 🌟 關鍵修正：解析 StopName (站牌) 欄位
             unique_stops = {}
             for stop in nearby_stops:
-                name = stop.get("StationName", {}).get("Zh_tw")
+                name = stop.get("StopName", {}).get("Zh_tw")
+                if not name: continue
                 if name not in unique_stops:
                     unique_stops[name] = {
-                        "uid": stop.get("StationUID"),
-                        "address": stop.get("StationAddress", "無地址資訊"),
-                        "distance": int(stop.get("StationPosition", {}).get("GeoHash", "") or 0)
+                        "uid": stop.get("StopUID"),
+                        "address": f"站牌編號: {stop.get('StopID', '無')}"
                     }
                     
             for name, info in unique_stops.items():
