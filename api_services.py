@@ -148,42 +148,49 @@ def fetch_city_stops(token, city):
     return []
 
 def get_nearby_stops(token, lat, lon, radius=1500):
-    """優先透過 TDX 空間查詢或指定城市站牌；若抓不到則提供該地點的真實對應站牌以供即時動態查詢"""
+    """向 TDX 發送真實的全台經緯度空間查詢請求，找尋半徑內的真實站牌"""
     if not token: return []
     
-    nearby_results = []
+    # TDX 官方標準的全台站牌空間查詢 API (Spatial Filter)
+    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/NearBy?$spatialFilter=nearby({lat},{lon},{radius})&$format=JSON"
+    headers = {'authorization': f'Bearer {token}'}
     
-    # 嘗試從新竹或台北的真實站牌資料庫中過濾出 1.5 公里內的站牌
-    target_cities = ["Hsinchu", "Taipei"] if lat < 25.0 else ["Taipei", "NewTaipei"]
-    for city in target_cities:
-        stops = fetch_city_stops(token, city)
-        for stop in stops:
-            pos = stop.get("StopPosition", {})
-            s_lat, s_lon = pos.get("PositionLat"), pos.get("PositionLon")
-            if s_lat and s_lon:
-                dist = calculate_distance(lat, lon, s_lat, s_lon)
-                if dist <= radius:
-                    stop_copy = stop.copy()
-                    stop_copy["city"] = city
-                    stop_copy["distance"] = int(dist)
-                    nearby_results.append(stop_copy)
-                    
-    # 如果 TDX 該座標範圍剛好沒有回傳，提供對應城市的真實核心站牌（保留真實 UID 以便點擊時能抓到真實動態）
-    if not nearby_results:
-        if abs(lat - 24.8) < 0.1: # 新竹地區
-            nearby_results = [
-                {"StopUID": "Hsinchu_10211", "StopName": {"Zh_tw": "新竹火車站"}, "city": "Hsinchu", "distance": 50},
-                {"StopUID": "Hsinchu_10212", "StopName": {"Zh_tw": "東門市場"}, "city": "Hsinchu", "distance": 320},
-                {"StopUID": "Hsinchu_10213", "StopName": {"Zh_tw": "大遠百"}, "city": "Hsinchu", "distance": 600}
-            ]
-        else: # 台北或其他地區
-            nearby_results = [
-                {"StopUID": "TPE_1", "StopName": {"Zh_tw": "台北車站 (忠孝)"}, "city": "Taipei", "distance": 100},
-                {"StopUID": "TPE_2", "StopName": {"Zh_tw": "捷運台大醫院站"}, "city": "Taipei", "distance": 450}
-            ]
+    try:
+        res = requests.get(url, headers=headers, timeout=6)
+        if res.status_code == 200:
+            stops_data = res.json()
+            nearby_results = []
             
-    nearby_results.sort(key=lambda x: x["distance"])
-    return nearby_results[:10]
+            for stop in stops_data:
+                pos = stop.get("StopPosition", {})
+                s_lat = pos.get("PositionLat")
+                s_lon = pos.get("PositionLon")
+                
+                if s_lat and s_lon:
+                    # 計算與使用者輸入地點的直線距離
+                    dist = calculate_distance(lat, lon, s_lat, s_lon)
+                    if dist <= radius:
+                        stop_copy = stop.copy()
+                        stop_copy["distance"] = int(dist)
+                        # 從 StopUID 或 StationID 自動判斷所屬城市 (TDX ID 通常帶有城市前綴)
+                        uid = stop.get("StopUID", "")
+                        city = "Taipei" # 預設
+                        if "Hsinchu" in uid: city = "Hsinchu"
+                        elif "Taichung" in uid: city = "Taichung"
+                        elif "Taoyuan" in uid: city = "Taoyuan"
+                        elif "Kaohsiung" in uid: city = "Kaohsiung"
+                        elif "NewTaipei" in uid: city = "NewTaipei"
+                        
+                        stop_copy["city"] = city
+                        nearby_results.append(stop_copy)
+                        
+            # 依距離由近到遠排序
+            nearby_results.sort(key=lambda x: x["distance"])
+            return nearby_results[:15] # 回傳最近的 15 個真實站牌
+    except: 
+        pass
+        
+    return []
 
 def get_stop_eta(token, city, stop_uid):
     """向 TDX 真實查詢該站牌 UID 的所有公車即時預估到站時間"""
