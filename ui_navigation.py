@@ -1,3 +1,4 @@
+# ui_navigation.py
 import streamlit as st
 import time
 from database import save_db
@@ -85,7 +86,8 @@ def render_navigation_tab(db, user_email):
                                         "start": start_input,
                                         "end": dest_input,
                                         "fare": fare,
-                                        "time": current_time
+                                        "time": current_time,
+                                        "status": "valid"  # ✨ 新增這行：將這筆乘車紀錄標記為有效
                                     })
                                     save_db(db)
                                     st.session_state.is_booked = True

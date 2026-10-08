@@ -73,6 +73,7 @@ def topup_dialog(db, user_email):
         time.sleep(2)
         st.rerun()
 
+# ✨ 升級版：具備退款功能的歷史明細視窗
 @st.dialog("📜 歷史乘車明細")
 def history_dialog(db, user_email):
     user_data = db["users"][user_email]
@@ -81,10 +82,41 @@ def history_dialog(db, user_email):
         st.info("尚無乘車紀錄")
     else:
         for idx, h in enumerate(reversed(history_list[-5:])):
+            # 取得該筆資料原本在 list 中的真實位置 (以便修改狀態)
+            real_idx = len(history_list) - 1 - idx
+            actual_h = history_list[real_idx]
+            
             with st.container(border=True):
-                st.write(f"🚍 **{h['route']}** (扣款: NT$ {h['fare']})")
-                st.caption(f"🕒 {h['time']}")
-                st.write(f"📍 {h['start']} ➔ 🏁 {h['end']}")
+                st.write(f"🚍 **{actual_h['route']}**")
+                st.caption(f"🕒 {actual_h['time']}")
+                st.write(f"📍 {actual_h['start']} ➔ 🏁 {actual_h['end']}")
+                
+                # 檢查該筆交易的狀態
+                status = actual_h.get("status", "valid")
+                
+                if status == "refunded":
+                    st.error(f"💵 已取消搭乘 (NT$ {actual_h['fare']} 已退還至錢包)")
+                else:
+                    st.write(f"**扣款金額**: NT$ {actual_h['fare']}")
+                    
+                    # 計算經過時間 (以 180秒/3分鐘 作為模擬發車時間)
+                    try:
+                        book_time = time.strptime(actual_h['time'], "%Y-%m-%d %H:%M:%S")
+                        diff_seconds = time.time() - time.mktime(book_time)
+                    except:
+                        diff_seconds = 9999
+                        
+                    if diff_seconds <= 180:
+                        remains = int(180 - diff_seconds)
+                        if st.button(f"申請退款 (剩餘 {remains} 秒發車)", key=f"refund_{real_idx}", use_container_width=True):
+                            actual_h["status"] = "refunded"
+                            user_data["balance"] += actual_h["fare"]
+                            save_db(db)
+                            st.success("✅ 退款成功！金額已退還至虛擬錢包。")
+                            time.sleep(1.5)
+                            st.rerun()
+                    else:
+                        st.button("🚫 已發車 (不可退款)", key=f"refund_{real_idx}", disabled=True, use_container_width=True)
 
 
 # ==========================================
@@ -93,13 +125,12 @@ def history_dialog(db, user_email):
 def render_sidebar(db, user_email):
     user_data = db["users"][user_email]
     
-    # 初始化資料庫欄位 (加入照片路徑)
     if "balance" not in user_data: user_data["balance"] = 0
     if "remember_me" not in user_data: user_data["remember_me"] = False
     if "phone" not in user_data: user_data["phone"] = None
     if "phone_verified" not in user_data: user_data["phone_verified"] = False
     if "face_verified" not in user_data: user_data["face_verified"] = False
-    if "face_image_path" not in user_data: user_data["face_image_path"] = "" # ✨ 新增：照片路徑
+    if "face_image_path" not in user_data: user_data["face_image_path"] = ""
     save_db(db)
 
     st.title("👤 會員專區")
@@ -131,8 +162,6 @@ def render_sidebar(db, user_email):
     st.markdown("### 🤖 真實人臉識別")
     if user_data["face_verified"]:
         st.success("✅ 已完成生物驗證")
-        
-        # ✨ 新增：如果在資料庫有存到照片路徑，就在側邊欄顯示出來！
         if user_data.get("face_image_path"):
             st.image(user_data["face_image_path"], caption="您的人臉特徵", width=120)
             
