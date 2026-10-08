@@ -1,4 +1,3 @@
-# ui_navigation.py
 import streamlit as st
 import time
 from database import save_db
@@ -7,14 +6,11 @@ from api_services import get_google_transit_route
 def render_navigation_tab(db, user_email):
     user_data = db["users"][user_email]
     
-    # ✨ 修改解鎖條件：不再強制檢查信用卡，僅強制檢查「AI 人臉識別」與「錢包餘額」
     has_face = bool(user_data.get("face_verified", False))
     
-    # 若尚未完成人臉識別，給予提示
     if not has_face:
         st.info("💡 **AI 無感支付解鎖提醒**：目前您可以自由查詢公車路線與地圖預覽。若要啟用「一鍵自動扣款」功能，請先至左側完成 **AI 人臉識別驗證**！")
     
-    # 初始化 Session State
     if "route_result" not in st.session_state:
         st.session_state.route_result = None
     if "success_msg" not in st.session_state:
@@ -78,7 +74,6 @@ def render_navigation_tab(db, user_email):
                     fare = result['fare'] if not user_data["is_student"] else int(result['fare'] * 0.8)
                     st.markdown(f"--- \n💵 **真實票價：NT$ {fare}** (已套用學生 8 折)")
                     
-                    # 💡 檢查邏輯：只要有人臉識別，就解鎖按鈕；點擊後嚴格檢查「餘額是否足夠」
                     if not st.session_state.is_booked:
                         if has_face:
                             if st.button("確認搭乘 (AI 影像識別無感扣款)", use_container_width=True, type="primary"):

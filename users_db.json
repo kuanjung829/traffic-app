@@ -36,7 +36,9 @@
                 }
             ],
             "remember_me": false,
-            "face_verified": true
+            "face_verified": true,
+            "phone": null,
+            "phone_verified": false
         },
         "test2@gmail.com": {
             "name": "testuser2",
@@ -44,7 +46,7 @@
             "is_student": false,
             "school_abbr": "",
             "credit_card": null,
-            "balance": 20,
+            "balance": 5,
             "phone": "0911111111",
             "phone_verified": true,
             "remember_me": true,
@@ -55,9 +57,16 @@
                     "end": "新竹高商",
                     "fare": 30,
                     "time": "2026-10-07 21:21:45"
+                },
+                {
+                    "route": "265經明德路",
+                    "start": "台北車站",
+                    "end": "西門町",
+                    "fare": 15,
+                    "time": "2026-10-08 20:12:39"
                 }
             ],
-            "face_verified": true
+            "face_verified": false
         }
     }
 }

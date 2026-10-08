@@ -1,4 +1,3 @@
-# ui_auth.py
 import streamlit as st
 from database import save_db
 
@@ -62,10 +61,11 @@ def render_auth_page(db):
                         "is_student": is_student,
                         "school_abbr": school_abbr,
                         "credit_card": None,
-                        "balance": 0,          # ✨ 創帳號時為 0 塊（防止洗錢）
-                        "phone": None,         # ✨ 手機號碼紀錄
-                        "phone_verified": False, # ✨ 手機驗證狀態
+                        "balance": 0,
+                        "phone": None,
+                        "phone_verified": False,
                         "remember_me": False,
+                        "face_verified": False,
                         "history": []
                     }
                     save_db(db)

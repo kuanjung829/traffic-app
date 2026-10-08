@@ -1,5 +1,5 @@
 import streamlit as st
-from database import load_db, save_db
+from database import load_db
 
 from ui_auth import render_auth_page
 from ui_sidebar import render_sidebar
@@ -9,10 +9,47 @@ db = load_db()
 
 st.set_page_config(page_title="AI 智慧公車系統", page_icon="🚌", layout="wide")
 
+# UI 美化 CSS 魔法
+def set_custom_css():
+    st.markdown("""
+        <style>
+        .stAppDeployButton {display:none;}
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        
+        .stButton>button {
+            border-radius: 20px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .stButton>button:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        [data-testid="stSidebar"] {
+            box-shadow: 3px 0 10px rgba(0,0,0,0.05);
+        }
+        
+        div[data-testid="stVerticalBlock"] > div[style*="border"] {
+            border-radius: 15px !important;
+            border: 1px solid #E0E5EC !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.03) !important;
+            background-color: #FFFFFF;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+set_custom_css()
+
+# ==========================================
+# 頁面路由器 (Router)
+# ==========================================
 if "page" not in st.session_state: st.session_state.page = "login"
 if "current_user" not in st.session_state: st.session_state.current_user = None
 
-# ✨ 開機自動檢查：如果有記住登入的 Cookie 且資料庫確認開啟，直接自動登入
+# 自動登入檢查
 if not st.session_state.current_user:
     saved_email = st.query_params.get("logged_in_user")
     if saved_email and saved_email in db["users"]:
@@ -20,20 +57,15 @@ if not st.session_state.current_user:
             st.session_state.current_user = saved_email
             st.session_state.page = "dashboard"
 
-# ==========================================
-# 頁面路由器 (Router)
-# ==========================================
 if st.session_state.page == "login":
     render_auth_page(db)
     
 elif st.session_state.page == "dashboard":
     user_email = st.session_state.current_user
     
-    # --- 1. 左側會員專區 ---
     with st.sidebar:
         render_sidebar(db, user_email)
 
-    # --- 2. 右側主畫面 (交通工具選項) ---
     st.title("選擇搭乘交通工具")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -43,8 +75,6 @@ elif st.session_state.page == "dashboard":
     with col4: st.button("🚲\n\nYouBike (敬請期待)", use_container_width=True, disabled=True)
     
     st.divider()
-    
-    # --- 3. 下方功能分頁 ---
     tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
     
     with tab1: 

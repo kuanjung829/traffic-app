@@ -4,24 +4,101 @@ import re
 import time
 import random
 from database import save_db
-from ui_face import render_face_verification
+from ui_face import face_dialog # 匯入剛剛改好的彈出視窗
 
+# ==========================================
+# 定義所有的中央彈出視窗 (Dialogs)
+# ==========================================
+@st.dialog("📱 綁定手機領取 50 元")
+def phone_dialog(db, user_email):
+    user_data = db["users"][user_email]
+    phone_input = st.text_input("手機號碼 (10碼，09開頭)", max_chars=10)
+    
+    if "simulated_otp" not in st.session_state:
+        st.session_state.simulated_otp = None
+    
+    if st.button("發送驗證碼", use_container_width=True):
+        if not re.match(r"^09\d{8}$", phone_input):
+            st.error("❌ 格式錯誤！必須為 10 碼純數字且以 09 開頭。")
+        else:
+            st.session_state.simulated_otp = str(random.randint(100000, 999999))
+            st.success("驗證碼已發送！請查看下方模擬簡訊。")
+    
+    if st.session_state.simulated_otp:
+        st.info(f"💬 【模擬簡訊】您的 6 位數驗證碼為：**{st.session_state.simulated_otp}**")
+        code_input = st.text_input("輸入 6 位數驗證碼", max_chars=6)
+        
+        if st.button("確認驗證並獲得 50 元", type="primary", use_container_width=True):
+            if code_input == st.session_state.simulated_otp:
+                user_data["phone"] = phone_input
+                user_data["phone_verified"] = True
+                user_data["balance"] += 50
+                save_db(db)
+                st.session_state.simulated_otp = None
+                st.success("🎉 手機綁定成功！已獲 NT$ 50。視窗將自動關閉...")
+                time.sleep(2) # 停留 2 秒
+                st.rerun()    # 關閉視窗刷新
+            else:
+                st.error("❌ 驗證碼錯誤，請重新輸入！")
+
+@st.dialog("💳 綁定信用卡")
+def credit_card_dialog(db, user_email):
+    user_data = db["users"][user_email]
+    cc_num = st.text_input("信用卡卡號 (16碼數字)", max_chars=16)
+    cc_date = st.text_input("有效期限 (MM/YY)", max_chars=5)
+    cc_cvv = st.text_input("安全碼 (3碼)", max_chars=3, type="password")
+    
+    if st.button("確認綁定", type="primary", use_container_width=True):
+        if not re.match(r"^\d{16}$", cc_num):
+            st.error("❌ 卡號格式錯誤！必須為 16 碼純數字。")
+        elif not re.match(r"^(0[1-9]|1[0-2])\/\d{2}$", cc_date):
+            st.error("❌ 有效期限格式錯誤！請輸入 MM/YY。")
+        elif not cc_cvv.isdigit() or len(cc_cvv) != 3:
+            st.error("❌ 安全碼格式錯誤！")
+        else:
+            user_data["credit_card"] = cc_num
+            save_db(db)
+            st.success("✅ 信用卡綁定成功！視窗將自動關閉...")
+            time.sleep(2)
+            st.rerun()
+
+@st.dialog("💰 虛擬錢包儲值中心")
+def topup_dialog(db, user_email):
+    user_data = db["users"][user_email]
+    add_amount = st.selectbox("選擇儲值金額", [15, 30, 50, 100, 300, 500])
+    if st.button("確認儲值", use_container_width=True, type="primary"):
+        user_data["balance"] += add_amount
+        save_db(db)
+        st.success(f"✅ 成功儲值 NT$ {add_amount}！視窗將自動關閉...")
+        time.sleep(2)
+        st.rerun()
+
+@st.dialog("📜 歷史乘車明細")
+def history_dialog(db, user_email):
+    user_data = db["users"][user_email]
+    history_list = user_data.get("history", [])
+    if not history_list:
+        st.info("尚無乘車紀錄")
+    else:
+        for idx, h in enumerate(reversed(history_list[-5:])):
+            with st.container(border=True):
+                st.write(f"🚍 **{h['route']}** (扣款: NT$ {h['fare']})")
+                st.caption(f"🕒 {h['time']}")
+                st.write(f"📍 {h['start']} ➔ 🏁 {h['end']}")
+
+
+# ==========================================
+# 側邊欄主程式 (只負責顯示狀態與按鈕)
+# ==========================================
 def render_sidebar(db, user_email):
     user_data = db["users"][user_email]
     
-    # 初始化資料庫安全欄位
-    if "balance" not in user_data:
-        user_data["balance"] = 0
-        save_db(db)
-    if "remember_me" not in user_data:
-        user_data["remember_me"] = False
-        save_db(db)
-    if "phone" not in user_data:
-        user_data["phone"] = None
-        save_db(db)
-    if "phone_verified" not in user_data:
-        user_data["phone_verified"] = False
-        save_db(db)
+    if "balance" not in user_data: user_data["balance"] = 0
+    if "remember_me" not in user_data: user_data["remember_me"] = False
+    if "phone" not in user_data: user_data["phone"] = None
+    if "phone_verified" not in user_data: user_data["phone_verified"] = False
+    if "face_verified" not in user_data: user_data["face_verified"] = False
+    save_db(db)
 
     st.title("👤 會員專區")
     
@@ -34,111 +111,63 @@ def render_sidebar(db, user_email):
         
     st.divider()
     st.metric("💳 虛擬錢包餘額", f"NT$ {user_data['balance']}")
-    
     st.divider()
     
-    # ✨ 新增：手機號碼驗證與 50 元獎勵機制
-    st.markdown("### 📱 手機號碼驗證 (領取50元)")
+    # 📱 1. 手機號碼區塊
+    st.markdown("### 📱 手機驗證 (領取50元)")
     if user_data["phone_verified"]:
         masked_phone = user_data["phone"][:4] + "****" + user_data["phone"][-2:]
-        st.success(f"✅ 已綁定手機：`{masked_phone}`")
+        st.success(f"✅ 已綁定：`{masked_phone}`")
     else:
-        st.warning("⚠️ 尚未綁定手機 (完成可獲 NT$ 50)")
-        with st.expander("📱 點擊展開：綁定手機領取 50 元"):
-            phone_input = st.text_input("手機號碼 (10碼，09開頭)", max_chars=10, key="phone_input")
-            
-            if "simulated_otp" not in st.session_state:
-                st.session_state.simulated_otp = None
-            
-            if st.button("發送驗證碼", use_container_width=True):
-                # 判定條件：10碼、前兩碼為 09
-                if not re.match(r"^09\d{8}$", phone_input):
-                    st.error("❌ 格式錯誤！必須為 10 碼純數字且以 09 開頭。")
-                else:
-                    # 隨機生成 6 位數驗證碼
-                    st.session_state.simulated_otp = str(random.randint(100000, 999999))
-                    st.success("驗證碼已發送！請查看下方模擬簡訊。")
-            
-            if st.session_state.simulated_otp:
-                st.info(f"💬 【模擬簡訊】您的 6 位數驗證碼為：**{st.session_state.simulated_otp}**")
-                code_input = st.text_input("輸入 6 位數驗證碼", max_chars=6, key="code_input")
-                
-                if st.button("確認驗證並獲得 50 元", type="primary", use_container_width=True):
-                    if code_input == st.session_state.simulated_otp:
-                        user_data["phone"] = phone_input
-                        user_data["phone_verified"] = True
-                        user_data["balance"] += 50  # 獲得 50 元獎勵
-                        save_db(db)
-                        st.session_state.simulated_otp = None
-                        st.success("🎉 手機號碼綁定成功！已獲得 NT$ 50 註冊獎勵金！")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.error("❌ 驗證碼錯誤，請重新輸入！")
+        st.warning("⚠️ 尚未綁定手機")
+        if st.button("👉 前往綁定手機", use_container_width=True):
+            phone_dialog(db, user_email) # 點擊後彈出視窗
 
     st.divider()
     
-    # 🤖 AI 人臉識別
-    render_face_verification(db, user_email)
+    # 🤖 2. 人臉識別區塊
+    st.markdown("### 🤖 AI 人臉識別")
+    if user_data["face_verified"]:
+        st.success("✅ 已驗證 (解鎖無感支付)")
+        if st.button("🔄 重新人臉校正", use_container_width=True):
+            user_data["face_verified"] = False
+            save_db(db)
+            st.rerun()
+    else:
+        st.warning("⚠️ 尚未進行驗證")
+        if st.button("👉 開始人臉建模", use_container_width=True):
+            face_dialog(db, user_email) # 點擊後彈出視窗
 
     st.divider()
-    st.markdown("### 🔒 支付與儲值管理")
     
-    if not user_data["credit_card"]:
+    # 🔒 3. 信用卡區塊
+    st.markdown("### 🔒 信用卡與儲值")
+    if not user_data.get("credit_card"):
         st.warning("⚠️ 尚未綁定信用卡")
-        with st.expander("💳 點擊展開：綁定信用卡"):
-            cc_num = st.text_input("信用卡卡號 (16碼數字)", max_chars=16, key="cc_num")
-            cc_date = st.text_input("有效期限 (MM/YY)", max_chars=5, key="cc_date")
-            cc_cvv = st.text_input("安全碼 (3碼)", max_chars=3, type="password", key="cc_cvv")
-            
-            if st.button("確認綁定", type="primary", use_container_width=True):
-                if not re.match(r"^\d{16}$", cc_num):
-                    st.error("❌ 卡號格式錯誤！必須為 16 碼純數字。")
-                elif not re.match(r"^(0[1-9]|1[0-2])\/\d{2}$", cc_date):
-                    st.error("❌ 有效期限格式錯誤！請輸入 MM/YY。")
-                elif not cc_cvv.isdigit() or len(cc_cvv) != 3:
-                    st.error("❌ 安全碼格式錯誤！")
-                else:
-                    db["users"][user_email]["credit_card"] = cc_num
-                    save_db(db)
-                    st.success("✅ 信用卡綁定成功！")
-                    time.sleep(1)
-                    st.rerun()
+        if st.button("👉 前往綁定信用卡", use_container_width=True):
+            credit_card_dialog(db, user_email) # 點擊後彈出視窗
     else:
         cc_hidden = f"**** **** **** {user_data['credit_card'][-4:]}"
-        st.markdown(f"**已綁定信用卡**：`{cc_hidden}`")
+        st.markdown(f"**已綁定**：`{cc_hidden}`")
         
-        with st.expander("💰 儲值中心 (模擬)", expanded=False):
-            add_amount = st.selectbox("選擇儲值金額", [15, 30, 50, 100, 300, 500])
-            if st.button("確認儲值", use_container_width=True):
-                db["users"][user_email]["balance"] += add_amount
-                save_db(db)
-                st.success(f"成功儲值 NT$ {add_amount}！")
-                time.sleep(1)
-                st.rerun()
-        
-        if st.button("❌ 解除綁定信用卡", use_container_width=True):
+        if st.button("💰 前往儲值中心", use_container_width=True):
+            topup_dialog(db, user_email) # 點擊後彈出視窗
+            
+        if st.button("❌ 解除綁定", use_container_width=True):
             db["users"][user_email]["credit_card"] = None
             save_db(db)
             st.rerun()
             
     st.divider()
     
-    st.markdown("### 📜 歷史乘車紀錄")
-    history_list = user_data.get("history", [])
-    if not history_list:
-        st.caption("尚無乘車紀錄")
-    else:
-        for idx, h in enumerate(reversed(history_list[-5:])):
-            with st.expander(f"🚍 {h['route']} (-${h['fare']})"):
-                st.caption(f"🕒 {h['time']}")
-                st.write(f"**起點**: {h['start']}")
-                st.write(f"**終點**: {h['end']}")
-                st.write(f"**扣款金額**: NT$ {h['fare']}")
-                st.success("✅ AI 無感支付完成")
+    # 📜 4. 歷史紀錄
+    st.markdown("### 📜 乘車紀錄")
+    if st.button("🧾 查看歷史乘車明細", use_container_width=True):
+        history_dialog(db, user_email) # 點擊後彈出視窗
                 
     st.divider()
     
+    # 🚪 5. 登出
     if st.button("🚪 登出系統", use_container_width=True):
         if user_email in db["users"]:
             db["users"][user_email]["remember_me"] = False
