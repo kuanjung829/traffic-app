@@ -3,7 +3,7 @@ import streamlit as st
 import time
 import datetime
 from database import save_db
-from api_services import get_google_transit_route_with_time
+from api_services import get_google_transit_route
 
 def render_navigation_tab(db, user_email):
     user_data = db["users"][user_email]
@@ -21,37 +21,41 @@ def render_navigation_tab(db, user_email):
         st.session_state.is_booked = False
 
     if st.session_state.route_result is None:
-        st.subheader("📍 智能路線與時間段規劃")
+        st.subheader("📍 智能路線規劃")
         
         col_s, col_d = st.columns(2)
         start_input = col_s.text_input("📍 出發地", placeholder="例如：清華大學")
         dest_input = col_d.text_input("🏁 目的地", placeholder="例如：新竹火車站")
         
         st.markdown("---")
-        st.markdown("### 🕒 選擇時間段設定")
         
-        col_mode, col_date, col_time = st.columns([1, 1.2, 1.2])
-        time_mode = col_mode.selectbox("時間模式", ["出發時間", "預計抵達時間"])
+        # 🌟 核心新功能：讓使用者選擇查詢模式
+        query_type = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 特定查詢 (設定出發/到達時間)"], horizontal=True)
         
-        # 預設為今天
-        default_date = datetime.date.today()
-        selected_date = col_date.date_input("選擇日期", default_date)
+        target_datetime = None
+        time_mode = "出發時間"
         
-        # 預設為現在時間
-        default_time = datetime.datetime.now().time()
-        selected_time = col_time.time_input("選擇時間點", default_time)
-        
-        # 合併日期與時間成為 datetime 物件
-        target_datetime = datetime.datetime.combine(selected_date, selected_time)
-        
+        if query_type == "🕒 特定查詢 (設定出發/到達時間)":
+            st.markdown("##### ⚙️ 時間段設定 (若無剛好班次，系統將自動尋找最接近的解答)")
+            col_mode, col_date, col_time = st.columns([1, 1.2, 1.2])
+            time_mode = col_mode.selectbox("時間模式", ["出發時間", "預計抵達時間"])
+            
+            selected_date = col_date.date_input("選擇日期", datetime.date.today())
+            selected_time = col_time.time_input("選擇時間點", datetime.datetime.now().time())
+            target_datetime = datetime.datetime.combine(selected_date, selected_time)
+            
         st.markdown("")
-        if st.button("🚀 尋找最佳轉乘路線", type="primary", use_container_width=True):
+        
+        if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
             if start_input and dest_input:
                 st.session_state.success_msg = ""
                 st.session_state.is_booked = False
-                with st.spinner("🚀 正在為您計算最佳時間段與轉乘方案..."):
-                    st.session_state.route_result = get_google_transit_route_with_time(
-                        start_input, dest_input, time_mode, target_datetime
+                
+                mode_str = "live" if "即時" in query_type else "specific"
+                
+                with st.spinner("🚀 正在為您規劃最佳轉乘路線..."):
+                    st.session_state.route_result = get_google_transit_route(
+                        start_input, dest_input, mode=mode_str, time_mode=time_mode, target_datetime=target_datetime
                     )
                     st.session_state.start_loc = start_input
                     st.session_state.dest_loc = dest_input
@@ -63,14 +67,14 @@ def render_navigation_tab(db, user_email):
         start_input = st.session_state.get("start_loc", "")
         dest_input = st.session_state.get("dest_loc", "")
         
-        if st.button("🔄 返回重新設定起迄點與時間段"):
+        if st.button("🔄 返回重新搜尋"):
             st.session_state.route_result = None
             st.session_state.success_msg = ""
             st.session_state.is_booked = False
             st.rerun()
             
         if result["status"] == "success":
-            st.success("✅ 已為您配對最佳時間段路線！")
+            st.success("✅ 路線規劃成功！")
             m_col, r_col = st.columns([1.2, 1])
             
             with m_col:
@@ -78,7 +82,7 @@ def render_navigation_tab(db, user_email):
                 st.map(result["coords"], zoom=13, use_container_width=True)
             
             with r_col:
-                st.subheader("💡 詳細搭乘步驟與時間段")
+                st.subheader("💡 詳細搭乘步驟與時間")
                 st.markdown(f"🕒 **預計發車**: `{result['dep_time_text']}` ➔ 🏁 **預計抵達**: `{result['arr_time_text']}`")
                 st.markdown(f"⏱️ **總車程預估**: `{result['travel_time']}`")
                 

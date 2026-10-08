@@ -27,15 +27,16 @@ def get_tdx_token():
 def clean_html(raw_html):
     return re.sub(r'<.*?>', '', raw_html)
 
-def get_google_transit_route_with_time(start_loc, dest_loc, time_mode, target_datetime):
-    """根據使用者指定的時間段（出發時間或抵達時間），向 Google Maps 查詢最適當的大眾運輸路線"""
+def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發時間", target_datetime=None):
+    """
+    統一的路線查詢引擎：
+    - mode="live": 即時查詢 (不帶時間參數，以現在為準)
+    - mode="specific": 特定查詢 (帶入出發或到達時間)
+    """
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
         return {"status": "error", "message": "尚未設定 Google API 金鑰！"}
 
     url = "https://maps.googleapis.com/maps/api/directions/json"
-    
-    # 將 datetime 轉換為 Unix Timestamp
-    timestamp = int(target_datetime.timestamp())
     
     params = {
         "origin": start_loc,
@@ -45,12 +46,14 @@ def get_google_transit_route_with_time(start_loc, dest_loc, time_mode, target_da
         "key": GOOGLE_MAPS_API_KEY
     }
     
-    # 根據選擇的時間模式設定參數
-    if time_mode == "出發時間":
-        params["departure_time"] = timestamp
-    else:
-        params["arrival_time"] = timestamp
-    
+    # 如果是特定查詢模式，帶入時間轉換
+    if mode == "specific" and target_datetime:
+        timestamp = int(target_datetime.timestamp())
+        if time_mode == "出發時間":
+            params["departure_time"] = timestamp
+        else:
+            params["arrival_time"] = timestamp
+            
     try:
         res = requests.get(url, params=params, timeout=8)
         data = res.json()
@@ -61,9 +64,8 @@ def get_google_transit_route_with_time(start_loc, dest_loc, time_mode, target_da
             real_fare = route.get("fare", {}).get("value", 15)
             total_duration = leg["duration"]["text"]
             
-            # 取得精確的起迄時間文字
-            dep_time_text = leg.get("departure_time", {}).get("text", "即時")
-            arr_time_text = leg.get("arrival_time", {}).get("text", "即時")
+            dep_time_text = leg.get("departure_time", {}).get("text", "即時發車")
+            arr_time_text = leg.get("arrival_time", {}).get("text", "即時到達")
             
             transit_legs = []
             path_coords = []
@@ -109,7 +111,7 @@ def get_google_transit_route_with_time(start_loc, dest_loc, time_mode, target_da
                 "coords": coords_df, "fare": real_fare
             }
         else:
-            return {"status": "not_found", "message": f"找不到符合該時間段的大眾運輸路線 ({data.get('status')}): 請確認起迄點與時間正確"}
+            return {"status": "not_found", "message": f"找不到大眾運輸路線 ({data.get('status')}): 請確認起迄點與時間設定正確"}
     except Exception as e:
         return {"status": "error", "message": f"連線逾時或錯誤: {e}"}
 
