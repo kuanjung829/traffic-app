@@ -82,3 +82,14 @@ elif st.session_state.page == "dashboard":
         
     with tab2: 
         st.info("🚧 此功能還在開發中，敬請期待！將來可直接顯示附近站牌動態。")
+    # (在 app.py 檔案的最底下)
+    st.divider()
+    tab1, tab2 = st.tabs(["導航：目前地 ➔ 目的地", "📍 附近站牌與路線"])
+    
+    with tab1: 
+        render_navigation_tab(db, user_email)
+        
+    with tab2: 
+        # ✨ 從 ui_navigation.py 匯入並呼叫新的 render_nearby_tab
+        from ui_navigation import render_nearby_tab
+        render_nearby_tab()  
