@@ -126,7 +126,7 @@ def get_location_coordinates(address):
     except: pass
     return None
 
-def get_nearby_stops(token, lat, lon, radius=500):
+def get_nearby_stops(token, lat, lon, radius=2000):
     if not token: return []
     # 🌟 關鍵修正：將 Station (大型站位) 改為 Stop (實體站牌)
     url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/NearBy?$spatialFilter=nearby({lat},{lon},{radius})&$format=JSON"
