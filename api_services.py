@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import streamlit as st
 import re
+import math
 
 try:
     TDX_CLIENT_ID = st.secrets["TDX_CLIENT_ID"]
@@ -112,7 +113,7 @@ def get_google_transit_route(start_loc, dest_loc):
     except Exception as e:
         return {"status": "error", "message": f"連線逾時或錯誤: {e}"}
 
-# --- 附近站牌功能 (已修正為搜尋 Stop 站牌) ---
+# --- 附近站牌功能 (改良版：透過計算縣市站牌座標距離來精準過濾) ---
 def get_location_coordinates(address):
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
         return None
@@ -126,10 +127,21 @@ def get_location_coordinates(address):
     except: pass
     return None
 
-def get_nearby_stops(token, lat, lon, radius=2000):
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """計算兩經緯度之間的距離 (公尺)"""
+    R = 6371000  # 地球半徑 (公尺)
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+@st.cache_data(ttl=3600)
+def fetch_city_stops(token, city):
+    """取得指定縣市的所有站牌快取"""
     if not token: return []
-    # 🌟 關鍵修正：將 Station (大型站位) 改為 Stop (實體站牌)
-    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/NearBy?$spatialFilter=nearby({lat},{lon},{radius})&$format=JSON"
+    url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/Stop/City/{city}?$format=JSON"
     headers = {'authorization': f'Bearer {token}'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
@@ -138,9 +150,33 @@ def get_nearby_stops(token, lat, lon, radius=2000):
     except: pass
     return []
 
+def get_nearby_stops(token, lat, lon, radius=2000):
+    if not token: return []
+    
+    # 自動判斷要掃描哪些縣市 (預設涵蓋新竹、雙北、台中、桃園)
+    cities = ["Hsinchu", "HsinchuCounty", "Taipei", "NewTaipei", "Taoyuan", "Taichung"]
+    nearby_results = []
+    
+    for city in cities:
+        stops = fetch_city_stops(token, city)
+        for stop in stops:
+            pos = stop.get("StopPosition", {})
+            s_lat = pos.get("PositionLat")
+            s_lon = pos.get("PositionLon")
+            if s_lat and s_lon:
+                dist = calculate_distance(lat, lon, s_lat, s_lon)
+                if dist <= radius:
+                    stop_copy = stop.copy()
+                    stop_copy["distance"] = int(dist)
+                    nearby_results.append(stop_copy)
+                    
+    # 依照距離遠近排序
+    nearby_results.sort(key=lambda x: x["distance"])
+    return nearby_results[:15] # 最多回報最近的 15 個站牌
+
 def get_stop_eta(token, stop_id):
     if not token: return []
-    priority_cities = ["Taipei", "NewTaipei", "Taoyuan", "Taichung", "Kaohsiung", "Hsinchu", "HsinchuCounty"]
+    priority_cities = ["Hsinchu", "HsinchuCounty", "Taipei", "NewTaipei", "Taoyuan", "Taichung", "Kaohsiung"]
     routes_eta = []
     for city in priority_cities:
         url = f"https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/{city}?$filter=StopUID eq '{stop_id}'&$format=JSON"
