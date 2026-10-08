@@ -29,20 +29,25 @@ def render_navigation_tab(db, user_email):
         
         st.markdown("---")
         
-        # 🌟 核心新功能：讓使用者選擇查詢模式
-        query_type = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 特定查詢 (設定出發/到達時間)"], horizontal=True)
+        query_type = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 特定查詢 (同時設定出發與到達時間)"], horizontal=True)
         
         target_datetime = None
-        time_mode = "出發時間"
+        target_arrival_datetime = None
         
-        if query_type == "🕒 特定查詢 (設定出發/到達時間)":
-            st.markdown("##### ⚙️ 時間段設定 (若無剛好班次，系統將自動尋找最接近的解答)")
-            col_mode, col_date, col_time = st.columns([1, 1.2, 1.2])
-            time_mode = col_mode.selectbox("時間模式", ["出發時間", "預計抵達時間"])
+        if query_type == "🕒 特定查詢 (同時設定出發與到達時間)":
+            st.markdown("##### ⚙️ 請設定您的行程時間範圍（系統將為您尋找最貼切的班次）")
             
+            col_date, col_dep, col_arr = st.columns([1.2, 1, 1])
             selected_date = col_date.date_input("選擇日期", datetime.date.today())
-            selected_time = col_time.time_input("選擇時間點", datetime.datetime.now().time())
-            target_datetime = datetime.datetime.combine(selected_date, selected_time)
+            
+            dep_time_val = col_dep.time_input("🕒 預計出發時間", datetime.datetime.now().time())
+            
+            # 預設抵達時間比出發時間多 1 小時
+            default_arr = (datetime.datetime.combine(datetime.date.today(), dep_time_val) + datetime.timedelta(hours=1)).time()
+            arr_time_val = col_arr.time_input("🏁 希望抵達時間", default_arr)
+            
+            target_datetime = datetime.datetime.combine(selected_date, dep_time_val)
+            target_arrival_datetime = datetime.datetime.combine(selected_date, arr_time_val)
             
         st.markdown("")
         
@@ -53,12 +58,13 @@ def render_navigation_tab(db, user_email):
                 
                 mode_str = "live" if "即時" in query_type else "specific"
                 
-                with st.spinner("🚀 正在為您規劃最佳轉乘路線..."):
+                with st.spinner("🚀 正在為您計算最佳時間段與轉乘方案..."):
                     st.session_state.route_result = get_google_transit_route(
-                        start_input, dest_input, mode=mode_str, time_mode=time_mode, target_datetime=target_datetime
+                        start_input, dest_input, mode=mode_str, time_mode="出發時間", target_datetime=target_datetime
                     )
                     st.session_state.start_loc = start_input
                     st.session_state.dest_loc = dest_input
+                    st.session_state.target_arrival = target_arrival_datetime # 記錄期望抵達時間供比對
                     st.rerun()
             else:
                 st.warning("請完整填寫出發地與目的地！")
@@ -74,7 +80,7 @@ def render_navigation_tab(db, user_email):
             st.rerun()
             
         if result["status"] == "success":
-            st.success("✅ 路線規劃成功！")
+            st.success("✅ 路線規劃成功！已為您配對最貼切時間段的班次。")
             m_col, r_col = st.columns([1.2, 1])
             
             with m_col:
