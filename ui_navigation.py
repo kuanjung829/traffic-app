@@ -42,7 +42,6 @@ def render_navigation_tab(db, user_email):
             
             dep_time_val = col_dep.time_input("🕒 預計出發時間", datetime.datetime.now().time())
             
-            # 預設抵達時間比出發時間多 1 小時
             default_arr = (datetime.datetime.combine(datetime.date.today(), dep_time_val) + datetime.timedelta(hours=1)).time()
             arr_time_val = col_arr.time_input("🏁 希望抵達時間", default_arr)
             
@@ -64,7 +63,7 @@ def render_navigation_tab(db, user_email):
                     )
                     st.session_state.start_loc = start_input
                     st.session_state.dest_loc = dest_input
-                    st.session_state.target_arrival = target_arrival_datetime # 記錄期望抵達時間供比對
+                    st.session_state.target_arrival = target_arrival_datetime 
                     st.rerun()
             else:
                 st.warning("請完整填寫出發地與目的地！")
@@ -89,7 +88,8 @@ def render_navigation_tab(db, user_email):
             
             with r_col:
                 st.subheader("💡 詳細搭乘步驟與時間")
-                st.markdown(f"🕒 **預計發車**: `{result['dep_time_text']}` ➔ 🏁 **預計抵達**: `{result['arr_time_text']}`")
+                # 使用 .get() 確保不會因為空值出錯
+                st.markdown(f"🕒 **預計發車**: `{result.get('dep_time_text', '即時出發')}` ➔ 🏁 **預計抵達**: `{result.get('arr_time_text', '依車程計算')}`")
                 st.markdown(f"⏱️ **總車程預估**: `{result['travel_time']}`")
                 
                 main_bus = "公車"
@@ -101,7 +101,8 @@ def render_navigation_tab(db, user_email):
                         elif leg["type"] == "TRANSIT":
                             main_bus = leg['bus_name']
                             st.markdown(f"### 🚍 搭乘 【{leg['bus_name']}】")
-                            st.caption(f"發車時間: 🕒 **{leg['dep_time']}** | 乘車時間: {leg['duration']} ({leg['num_stops']} 站)")
+                            # 🌟 關鍵改動：並列顯示單一公車的發車與抵達時間
+                            st.caption(f"🕒 發車: **{leg.get('dep_time', '隨時發車')}** ➔ 🏁 抵達: **{leg.get('arr_time', '依車程抵達')}** | 乘車時間: {leg['duration']} ({leg['num_stops']} 站)")
                             st.markdown(f"📍 **上車**：`{leg['board']}`")
                             st.markdown(f"🏁 **下車**：`{leg['alight']}`")
                             
