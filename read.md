@@ -1,94 +1,84 @@
-# 智慧公車無感支付與 AI 動態導航 APP 專案規劃書
+🚌 AI 智慧公車與路線導航系統 (Smart Bus Payment & Transit Navigation System)
 
-## 一、 專案摘要 (Executive Summary)
-結合 Edge AI 影像邊緣運算與無感支付技術的智慧公車 APP，並內建自然語言路線導航，旨在解決傳統上下車刷卡壅塞問題，提供「開口即出發、走過即扣款」的零延遲乘車體驗，同時為客運業者提供數據化的營運決策支援。
+這是一套結合 AI 電腦視覺（臉部識別）、無感支付扣款、全台大眾運輸動態導航 以及 智慧時間段規劃 的現代化智慧交通與票證整合平台。本專案旨在提供如乘車碼、Apple Pay 般的流暢體驗，並透過直覺的 Web 介面實現完整的公共運輸數位轉型。
 
-## 二、 市場背景與痛點分析 (Problem Statement)
-*   **乘客端：** 上下車需翻找實體票卡或開啟手機條碼，尖峰時段極易造成車門壅塞；查詢路線需手動輸入起訖點，缺乏直覺的引導與個人化到站提醒。
-*   **營運端：** 實體刷卡機台維護成本高、故障率難控；業者缺乏精準的乘客起訖點 (O-D) 動態數據，難以進行科學化的排班與路線優化。
+🌟 核心功能亮點 (Key Features)
 
-## 三、 核心解決方案與創新功能 (Solution & Features)
-*   **AI 對話式乘車助理 (AI Transit Copilot)：** 顛覆手動查詢模式，乘客透過自然語言（如：「我要去新竹火車站」），系統瞬間解析意圖並推薦最佳路線，一鍵啟動後續支付流程。
-*   **主動式感知無感支付：** 乘客攜帶手機上車，透過車載 AI 鏡頭與手機無線訊號自動匹配身份，無需主動刷卡即可完成扣款。
-*   **一站式乘車管理：** 整合支付載具綁定、動態餘額顯示、乘車歷史紀錄、即時擁擠度預報與異常扣款申訴機制。
+1. 🤖 AI 臉部識別與雙解鎖無感支付
 
-## 四、 系統架構與技術深度 (Technical Architecture)
-*   **邊緣運算 (Edge AI)：** 於公車本地端設備進行影像處理與特徵提取（如人體骨架與人臉特徵），確保車輛移動中或網路延遲時仍能低延遲運作，保障扣款即時性。
-*   **自然語言處理 (NLP) 與實體辨識：** 運用大型語言模型 (LLM) 解析乘客的口語化輸入，精準擷取目的地實體 (Entity)，並具備容錯處理模糊指令的能力。
-*   **圖論演算法與動態路徑優化：** 後端結合政府 TDX 交通 API，將公車路網轉化為資料結構，結合動態 GPS 與交通狀況，計算時間成本最低的最佳搭乘方案。
+Webcam 硬體直連：利用 Streamlit 內建高畫質相機硬體串流即時捕捉使用者面部特徵。
 
-## 五、 核心模組實作與資料流 (Data Flow Examples)
+生物特徵建模：拍攝照片後自動持久化儲存至本地 /face_photos/ 資料夾，完成無感支付驗證解鎖。
 
-### 模組 1：前端自然語言與定位獲取
-前端 APP 提供輸入框，接收指令時同步抓取 GPS 座標並發送至後端。
-```json
-// Request: APP -> Backend
-{
-  "user_id": "U10998",
-  "timestamp": "2026-09-30T19:10:00",
-  "current_gps": {"lat": 24.8080, "lng": 120.9545}, 
-  "user_input": "我現在要去新竹火車站"
-}
-```
+雙重驗證扣款 Gating：必須同時具備「足夠的錢包餘額」與「完成 AI 人臉識別」，才能啟動一鍵智慧扣款。
 
-### 模組 2：AI 意圖與實體擷取 (NLP Entity Extraction)
-後端透過 Prompt Engineering 將使用者輸入傳遞給 LLM，精準萃取目的地名稱。
-```json
-// Response: AI Model -> Backend
-{
-  "intent": "find_route",
-  "destination": "新竹火車站"
-}
-```
+2. 💳 智慧會員中心與金融交易機制
 
-### 模組 3：路線演算法與交通 API 串接 (Routing Logic)
-後端依據起迄點與交通資料庫進行路徑規劃演算法計算，得出最佳方案。
-```json
-// Response: Backend -> APP
-{
-  "status": "success",
-  "route_options": [
-    {
-      "option_id": 1,
-      "bus_route_name": "藍15區",
-      "boarding_stop": "磐石高中",
-      "alighting_stop": "新竹火車站",
-      "estimated_wait_time_mins": 5,
-      "travel_time_mins": 15,
-      "fare": 15
-    }
-  ]
-}
-```
+手機驗證獎勵：輸入 10 碼手機號碼並通過 6 位數模擬簡訊 OTP 驗證，即可立即獲得 NT$ 50 迎賓獎勵金。
 
-### 模組 4：前端結果渲染與支付準備 (UI & Payment Ready)
-使用者確認路線後，系統將該趟乘車意圖寫入資料庫，並切換為感應等待狀態。待車載設備識別身份後自動觸發扣款。
-```json
-// DB Record: Pending Status
-{
-  "user_id": "U10998",
-  "expected_bus": "藍15區",
-  "payment_status": "ready_to_board"
-}
-```
+信用卡綁定與虛擬錢包：支援 16 碼信用卡驗證綁定與多面額虛擬錢包即時儲值（NT$ 15 ~ NT$ 500）。
 
-## 六、 商業模式與落地效益 (Business Model)
-*   **B2B 企業端 (客運業者/市府)：** 降低硬體設備維護費用，並將精準的人流與搭乘熱點數據轉化為報表，協助業者精簡冷門時段班次、最佳化營運成本。
-*   **B2C 用戶端 (乘客)：** 基礎無感支付功能免費。未來可結合起訖點周邊商圈，進行精準的在地商家優惠推播，創造流量變現與廣告收益。
+3 分鐘發車退款緩衝期：購票後 3 分鐘內可於歷史乘車明細隨時「申請退款」，金額即時回補錢包；超過 3 分鐘發車後自動鎖定反灰，完美還原真實客運退票邏輯。
 
-## 七、 開發時程規劃 (Roadmap)
-*   **Phase 1: 概念驗證 (PoC)**
-    *   完成 APP 介面原型 (UI/UX) 設計與導航對話框。
-    *   架設測試環境，驗證 AI 文字關鍵字擷取與基礎路線 API 串接。
-*   **Phase 2: 最小可行性產品 (MVP)**
-    *   實作後端 Python API、資料庫與 APP 註冊登入。
-    *   完成「輸入文字 -> 顯示路線 -> 確認搭乘 -> 寫入待扣款狀態」的核心軟體閉環。
-*   **Phase 3: 軟硬體整合與封閉測試 (Beta)**
-    *   結合邊緣運算鏡頭進行影像識別與手機訊號匹配。
-    *   於模擬情境進行壓力測試，收集錯誤數據並訓練演算法降低誤判率。
+3. 🗺️ 智能路線與雙模式時間段規劃
 
-## 八、 風險評估與應對策略 (Risk Management)
-*   **隱私與資安規範：** 系統僅擷取並比對去識別化的特徵碼（如人臉向量值），絕不上傳或儲存原始乘客影像資料，嚴格遵守個資法。
-*   **硬體運算限制：** 考量初期公車車載設備算力限制，設計輕量化 Edge AI 識別模型，並將複雜的路徑規劃與營運報表運算拆分至雲端非同步處理，確保系統穩定性。
+⚡ 即時查詢模式：無需繁瑣設定，一鍵自動以當下系統時間向 Google Maps 查詢最快轉乘方案與即時公車動態。
+
+🕒 特定查詢模式：支援「同時設定預計出發時間與希望抵達時間」，系統自動為使用者配對最完美、最貼切的班次。
+
+自動化步行與轉乘拆解：清晰呈現步行距離、公車路線名稱、預計發車時間與剩餘停靠站數。
+
+4. 🎓 學生專屬優惠折扣
+
+學籍信箱識別：透過 .edu.tw 學校信箱註冊，系統自動判定並解鎖 全台公車票價 8 折優惠。
+
+🏗️ 專案架構與模組說明 (Project Architecture)
+
+本專案採用高度模組化設計，徹底解耦前端 UI 渲染、後端商業邏輯與外部 API 溝通：
+
+traffic-app/
+│
+├── app.py                  # 主程式進入點、全局 CSS 美化與頁面路由器
+├── database.py             # 本地 JSON 資料庫讀寫、會員持久化與交易紀錄管理
+├── api_services.py         # 串接 Google Maps Directions API 與 TDX 官方公車即時動態
+├── ui_auth.py              # 用戶登入、註冊與學生身份驗證介面
+├── ui_sidebar.py           # 側邊欄會員中心、錢包儲值、手機/信用卡綁定、歷史明細彈窗
+├── ui_face.py              # AI webcam 人臉拍照擷取與生物識別建模模組
+├── ui_navigation.py        # 起迄點導航、時間段設定與即時/特定查詢介面
+├── requirements.txt        # 專案 Python 依賴套件清單
+├── .streamlit/
+│   └── secrets.toml        # 機密金鑰與 API Token 本地設定檔
+└── face_photos/            # 儲存用戶人臉識別截圖之資料夾
+
+
+🚀 安裝與部署指南 (Installation & Deployment)
+
+1. 環境需求
+
+Python 3.10 或以上版本
+
+穩定的網路連線（用於呼叫 Google Maps API 與中華民國交通部 TDX 運輸資料流通服務）
+
+2. 下載與安裝依賴項目
+
+在終端機執行以下指令安裝所需套件：
+
+git clone https://github.com/kuanjung829/traffic-app.git
+cd traffic-app
+pip install -r requirements.txt
+
+
+3. 設定環境金鑰 (Secrets Management)
+
+於專案根目錄建立 .streamlit/secrets.toml 檔案，填入你的 Google Maps 與 TDX API 金鑰：
+
+TDX_CLIENT_ID = "你的TDX_Client_ID"
+TDX_CLIENT_SECRET = "你的TDX_Client_SECRET"
+GOOGLE_MAPS_API_KEY = "你的Google_Maps_API_Key"
+
+
+(若部署至 Streamlit Community Cloud，請直接至 App Dashboard 的 Settings -> Secrets 貼上以上 TOML 格式設定。)
+
+4. 啟動應用程式
+
 streamlit run app.py
-python tdx_test.py
