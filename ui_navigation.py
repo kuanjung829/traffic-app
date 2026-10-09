@@ -88,7 +88,6 @@ def render_navigation_tab(db, user_email):
             
             with r_col:
                 st.subheader("💡 詳細搭乘步驟與時間")
-                # 使用 .get() 確保不會因為空值出錯
                 st.markdown(f"🕒 **預計發車**: `{result.get('dep_time_text', '即時出發')}` ➔ 🏁 **預計抵達**: `{result.get('arr_time_text', '依車程計算')}`")
                 st.markdown(f"⏱️ **總車程預估**: `{result['travel_time']}`")
                 
@@ -101,8 +100,13 @@ def render_navigation_tab(db, user_email):
                         elif leg["type"] == "TRANSIT":
                             main_bus = leg['bus_name']
                             st.markdown(f"### 🚍 搭乘 【{leg['bus_name']}】")
-                            # 🌟 關鍵改動：並列顯示單一公車的發車與抵達時間
-                            st.caption(f"🕒 發車: **{leg.get('dep_time', '隨時發車')}** ➔ 🏁 抵達: **{leg.get('arr_time', '依車程抵達')}** | 乘車時間: {leg['duration']} ({leg['num_stops']} 站)")
+                            
+                            # 🌟 關鍵修復：這裡強迫讀取剛剛存好的 dep_time 跟 arr_time，再印出來！
+                            leg_dep = leg.get('dep_time', '馬上發車')
+                            leg_arr = leg.get('arr_time', '約抵達')
+                            
+                            st.caption(f"🕒 發車: **{leg_dep}** ➔ 🏁 抵達: **{leg_arr}** | 乘車時間: {leg['duration']} ({leg['num_stops']} 站)")
+                            
                             st.markdown(f"📍 **上車**：`{leg['board']}`")
                             st.markdown(f"🏁 **下車**：`{leg['alight']}`")
                             

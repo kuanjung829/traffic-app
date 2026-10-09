@@ -41,7 +41,7 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
         "key": GOOGLE_MAPS_API_KEY
     }
     
-    # 🌟 關鍵修復：不管是特定查詢還是即時查詢，都必須給 Google 一個明確的時間基準
+    # 🌟 確保送出正確的時間戳記給 Google
     if mode == "specific" and target_datetime:
         timestamp = int(target_datetime.timestamp())
         if time_mode == "出發時間":
@@ -49,7 +49,6 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
         else:
             params["arrival_time"] = timestamp
     else:
-        # 即時查詢強制帶入「現在」的時間戳，Google 才會回傳確切的發車時鐘時間
         params["departure_time"] = int(datetime.datetime.now().timestamp())
             
     try:
@@ -62,7 +61,7 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
             real_fare = route.get("fare", {}).get("value", 15)
             total_duration = leg["duration"]["text"]
             
-            # 加上預設值防呆，避免解析不到
+            # 總行程的預計發車與抵達時間
             dep_time_text = leg.get("departure_time", {}).get("text", "即時出發")
             arr_time_text = leg.get("arrival_time", {}).get("text", "依車程計算")
             
@@ -81,14 +80,17 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
                     alight = details["arrival_stop"]["name"]
                     num_stops = details.get("num_stops", 0)
                     
-                    # 🌟 同時抓取各路線的發車與抵達時間
-                    dep_t = details.get("departure_time", {}).get("text", "隨時發車")
-                    arr_t = details.get("arrival_time", {}).get("text", "依車程抵達")
+                    # 🌟 關鍵修復：安全地抓出單一班車的發車與抵達時間文字
+                    dep_t = details.get("departure_time", {}).get("text", "馬上發車")
+                    arr_t = details.get("arrival_time", {}).get("text", "約抵達")
                     
                     transit_legs.append({
                         "type": "TRANSIT", "vehicle": vehicle_type,
                         "bus_name": bus_name, "board": board, "alight": alight, 
-                        "num_stops": num_stops, "dep_time": dep_t, "arr_time": arr_t, "duration": step["duration"]["text"]
+                        "num_stops": num_stops, 
+                        "dep_time": dep_t, # 強制存入這兩個欄位
+                        "arr_time": arr_t, 
+                        "duration": step["duration"]["text"]
                     })
                 elif step["travel_mode"] == "WALKING":
                     transit_legs.append({
