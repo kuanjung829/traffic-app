@@ -1,81 +1,57 @@
-# app.py
+# passenger_app/app.py
 import streamlit as st
 from database import load_db
 
-from ui_auth import render_auth_page
+# 匯入你的 UI 元件
 from ui_sidebar import render_sidebar
-from ui_navigation import render_navigation_tab 
+from ui_scanner import render_scanner
+from ui_auth import render_auth_page
+from ui_navigation import render_navigation_tab
 
-db = load_db()
+# 設定網頁標題與寬度
+st.set_page_config(page_title="磐石高中 AI 公車系統", page_icon="🚌", layout="wide")
 
-st.set_page_config(page_title="AI 智慧公車與路線導航系統", page_icon="🚌", layout="wide")
+def main():
+    # 1. 載入資料庫
+    db = load_db()
 
-# UI 美化 CSS 魔法
-def set_custom_css():
-    st.markdown("""
-        <style>
-        .stAppDeployButton {display:none;}
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
+    # 2. 初始化 Session State
+    if "page" not in st.session_state:
+        st.session_state.page = "login"
+    if "current_user" not in st.session_state:
+        st.session_state.current_user = None
+
+    # 3. 頁面路由切換
+    
+    # 登入頁面
+    if st.session_state.page == "login":
+        render_auth_page(db)
+
+    # 🌟 專題展示：公車驗票機模式
+    elif st.session_state.page == "scanner_mode":
+        render_scanner(db)
         
-        .stButton>button {
-            border-radius: 20px;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: all 0.3s ease-in-out;
-        }
-        .stButton>button:hover {
-            transform: scale(1.03);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        }
+        st.markdown("---")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("⬅️ 結束機台模擬，返回乘客端 APP", use_container_width=True):
+                # 登入後的主畫面是 "dashboard"
+                st.session_state.page = "dashboard"
+                st.rerun()
 
-        [data-testid="stSidebar"] {
-            box-shadow: 3px 0 10px rgba(0,0,0,0.05);
-        }
-        
-        div[data-testid="stVerticalBlock"] > div[style*="border"] {
-            border-radius: 15px !important;
-            border: 1px solid #E0E5EC !important;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.03) !important;
-            background-color: #FFFFFF;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    # 主系統 (乘客端)
+    else:
+        if st.session_state.current_user:
+            user_email = st.session_state.current_user
+            
+            with st.sidebar:
+                render_sidebar(db, user_email)
+            
+            render_navigation_tab(db, user_email)
+            
+        else:
+            st.session_state.page = "login"
+            st.rerun()
 
-set_custom_css()
-
-# ==========================================
-# 頁面路由器 (Router)
-# ==========================================
-if "page" not in st.session_state: st.session_state.page = "login"
-if "current_user" not in st.session_state: st.session_state.current_user = None
-
-# 自動登入檢查
-if not st.session_state.current_user:
-    saved_email = st.query_params.get("logged_in_user")
-    if saved_email and saved_email in db["users"]:
-        if db["users"][saved_email].get("remember_me", False):
-            st.session_state.current_user = saved_email
-            st.session_state.page = "dashboard"
-
-if st.session_state.page == "login":
-    render_auth_page(db)
-    
-elif st.session_state.page == "dashboard":
-    user_email = st.session_state.current_user
-    
-    with st.sidebar:
-        render_sidebar(db, user_email)
-
-    st.title("選擇搭乘交通工具")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("🚌\n\n公車系統", use_container_width=True, type="primary"): pass
-    with col2: st.button("🚇\n\n捷運 (敬請期待)", use_container_width=True, disabled=True)
-    with col3: st.button("🚂\n\n火車 (敬請期待)", use_container_width=True, disabled=True)
-    with col4: st.button("🚲\n\nYouBike (敬請期待)", use_container_width=True, disabled=True)
-    
-    st.divider()
-    
-    # 直接渲染專注於起迄點與時間段規劃的主導航介面
-    render_navigation_tab(db, user_email)
+if __name__ == "__main__":
+    main()

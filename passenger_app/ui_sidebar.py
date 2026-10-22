@@ -1,4 +1,4 @@
-# ui_sidebar.py
+# passenger_app/ui_sidebar.py
 import streamlit as st
 import re
 import time
@@ -215,4 +215,16 @@ def render_sidebar(db, user_email):
             
         st.session_state.current_user = None
         st.session_state.page = "login"
+        st.rerun()
+
+    # ==========================================
+    # 🌟 6. 專題展示專區 (新增的驗票機模式按鈕)
+    # ==========================================
+    st.divider()
+    st.markdown("### 🔧 專題展示專區")
+    st.caption("評審與開發者測試專用入口")
+    
+    # 使用 type="primary" 讓這個按鈕特別明顯 (紅色)
+    if st.button("🚌 開啟實體驗票機模式", use_container_width=True, type="primary"):
+        st.session_state.page = "scanner_mode"
         st.rerun()

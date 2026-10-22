@@ -1,7 +1,8 @@
-# ui_navigation.py
+# passenger_app/ui_navigation.py
 import streamlit as st
 import time
 import datetime
+# 💡 已經將 passenger_app. 刪除，改為同層級直接匯入
 from database import save_db
 from api_services import get_google_transit_route
 
@@ -101,7 +102,6 @@ def render_navigation_tab(db, user_email):
                             main_bus = leg['bus_name']
                             st.markdown(f"### 🚍 搭乘 【{leg['bus_name']}】")
                             
-                            # 🌟 關鍵修復：這裡強迫讀取剛剛存好的 dep_time 跟 arr_time，再印出來！
                             leg_dep = leg.get('dep_time', '馬上發車')
                             leg_arr = leg.get('arr_time', '約抵達')
                             
