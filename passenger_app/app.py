@@ -15,11 +15,19 @@ def main():
     # 1. 載入資料庫
     db = load_db()
 
-    # 2. 初始化 Session State
-    if "page" not in st.session_state:
-        st.session_state.page = "login"
+    # 2. 💡 初始化 Session State：加入「保持登入」自動偵測機制
     if "current_user" not in st.session_state:
+        # 先預設為未登入
         st.session_state.current_user = None
+        st.session_state.page = "login"
+        
+        # 去資料庫掃描，看看有沒有人之前勾選了「保持登入」
+        for email, user_data in db["users"].items():
+            if user_data.get("remember_me") == True:
+                # 找到了！直接幫他自動登入
+                st.session_state.current_user = email
+                st.session_state.page = "dashboard"
+                break  # 找到就跳出迴圈
 
     # 3. 頁面路由切換
     
@@ -35,7 +43,6 @@ def main():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("⬅️ 結束機台模擬，返回乘客端 APP", use_container_width=True):
-                # 登入後的主畫面是 "dashboard"
                 st.session_state.page = "dashboard"
                 st.rerun()
 

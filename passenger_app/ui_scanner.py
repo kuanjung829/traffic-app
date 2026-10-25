@@ -1,66 +1,150 @@
 # passenger_app/ui_scanner.py
 import streamlit as st
+import os
+import json
 import time
+import cv2
+import numpy as np
+from PIL import Image
+import urllib.request
 from database import save_db
 
-def render_scanner(db):
-    st.title("🚌 新竹客運 AI 無感支付驗票機 (機台模擬)")
+LOCAL_BUS_DB_PATH = "../shared_data/local_bus_transactions.json"
+SCAN_DIR = "../shared_data/bus_scans"
+
+def load_local_bus_db():
+    if not os.path.exists(LOCAL_BUS_DB_PATH):
+        return {"bus_id": "新竹客運-架構測試車", "total_revenue": 0, "transactions": []}
+    with open(LOCAL_BUS_DB_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_local_bus_db(data):
+    with open(LOCAL_BUS_DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+def get_face_cascade():
+    cascade_filename = "haarcascade_frontalface_default.xml"
+    if not os.path.exists(cascade_filename):
+        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+        try:
+            urllib.request.urlretrieve(url, cascade_filename)
+        except Exception as e:
+            st.error(f"下載 AI 模型失敗: {e}")
+            return None
+    return cv2.CascadeClassifier(cascade_filename)
+
+def render_scanner(cloud_db):
+    st.title("🚌 新竹客運 雙資料庫測試驗票機")
+    st.caption("展示雲端與本機雙資料庫存檔架構 (含 AI 綠框視覺特效，沒臉不扣款版)")
     st.markdown("---")
+
+    os.makedirs(SCAN_DIR, exist_ok=True)
 
     col_cam, col_info = st.columns([1.5, 1])
 
     with col_cam:
         st.subheader("📷 乘客上車掃描區")
-        picture = st.camera_input("請乘客直視鏡頭以進行扣款", key="bus_cam")
+        registered_users = [email for email, data in cloud_db["users"].items() if data.get("face_verified")]
+        if not registered_users:
+            st.warning("目前沒有任何已註冊照片的帳號，請先回乘客端註冊。")
+            return
+            
+        simulated_user = st.selectbox("請選擇要模擬扣款的帳號 (代替 AI 辨識):", registered_users)
+        picture = st.camera_input("請拍攝上車存證照片", key="bus_cam")
 
     with col_info:
         st.subheader("💳 交易狀態看板")
         status_placeholder = st.empty()
-        status_placeholder.info("等待乘客上車刷臉...")
-
-    if picture:
-        status_placeholder.warning("🔄 系統辨識中...請稍候")
-        time.sleep(1) # 模擬 AI 處理時間
         
-        try:
-            matched_user = None
-            # 🚀 尋找有註冊過臉的帳號來模擬扣款
-            for email, user_data in db["users"].items():
-                if user_data.get("face_verified"):
-                    matched_user = email
-                    break
+        local_db = load_local_bus_db()
+        st.divider()
+        st.metric("🚌 本機台今日累計營收", f"NT$ {local_db['total_revenue']}")
+
+    # 建立大腦記憶防重複扣款
+    if "last_processed_pic_size" not in st.session_state:
+        st.session_state.last_processed_pic_size = None
+    if "last_status_msg" not in st.session_state:
+        st.session_state.last_status_msg = "等待乘客拍攝上車照片..."
+
+    if picture and simulated_user:
+        current_pic_size = len(picture.getvalue())
+        
+        img = Image.open(picture).convert('RGB')
+        img_array = np.array(img)
+        
+        # ==========================================
+        # 🤖 視覺特效：用 OpenCV 偵測並畫出綠色人臉定位框
+        # ==========================================
+        face_detected = False
+        face_cascade = get_face_cascade()
+        
+        if face_cascade is not None:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(50, 50))
             
-            if matched_user:
-                user_info = db["users"][matched_user]
+            for (x, y, w, h) in faces:
+                face_detected = True
+                cv2.rectangle(img_array, (x, y), (x + w, y + h), (0, 255, 0), 4)
+                cv2.putText(img_array, "FACE TRACKED", (x, max(20, y - 10)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                            
+        with col_cam:
+            if face_detected:
+                st.image(img_array, caption="🟢 AI 已鎖定臉部特徵框", use_container_width=True)
+            else:
+                st.image(img_array, caption="⚠️ 未精準捕捉到完整正面五官，請正對鏡頭", use_container_width=True)
+        # ==========================================
+
+        if st.session_state.last_processed_pic_size != current_pic_size:
+            # 💡 攔截機制：必須確保 face_detected 是 True (有抓到臉) 才允許進入扣款流程
+            if not face_detected:
+                error_msg = "### 🔴 扣款失敗：未偵測到人臉！\n系統無法確認乘客身分，請確保臉部清晰並直視鏡頭後再試一次。"
+                st.session_state.last_processed_pic_size = current_pic_size
+                st.session_state.last_status_msg = error_msg
+                status_placeholder.error(error_msg)
+            else:
+                # 有抓到臉，繼續執行存證與扣款
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                scan_filename = f"scan_{simulated_user}_{timestamp}.png"
+                scan_path = os.path.join(SCAN_DIR, scan_filename)
+                
+                Image.fromarray(img_array).save(scan_path, format="PNG")
+                
+                user_info = cloud_db["users"][simulated_user]
                 base_fare = 15
                 actual_fare = int(base_fare * 0.8) if user_info.get("is_student") else base_fare
                 
                 if user_info["balance"] >= actual_fare:
                     user_info["balance"] -= actual_fare
                     current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                    user_info["history"].append({
-                        "route": "新竹客運 (實體機台掃描)",
-                        "start": "實體站牌上車",
-                        "end": "未知",
+                    
+                    local_db["total_revenue"] += actual_fare
+                    local_db["transactions"].append({
+                        "passenger": simulated_user,
                         "fare": actual_fare,
                         "time": current_time,
-                        "status": "valid"
+                        "status": "success",
+                        "scan_image": scan_filename
                     })
-                    save_db(db)
-                    status_placeholder.success(f"""
-                    ### 🟢 驗證成功，請上車！
-                    * **乘客信箱**：{matched_user}
-                    * **扣款金額**：NT$ {actual_fare} {'(學生8折)' if user_info.get("is_student") else '(全票)'}
-                    * **錢包餘額**：NT$ {user_info['balance']}
-                    """)
+                    
+                    save_db(cloud_db)
+                    save_local_bus_db(local_db)
+                    
+                    success_msg = f"### 🟢 雙資料庫連線扣款成功！\n* **存證照片**：已加入 AI 綠框並存入資料夾\n* **乘客身分**：{user_info['name']}\n* **扣款金額**：NT$ {actual_fare}\n* **剩餘餘額**：NT$ {user_info['balance']}"
+                    
+                    st.session_state.last_processed_pic_size = current_pic_size
+                    st.session_state.last_status_msg = success_msg
+                    status_placeholder.success(success_msg)
                 else:
-                    status_placeholder.error(f"""
-                    ### 🔴 餘額不足！
-                    * **乘客信箱**：{matched_user}
-                    * **錢包餘額**：NT$ {user_info['balance']} (需 NT$ {actual_fare})
-                    """)
+                    error_msg = f"### 🔴 扣款失敗：餘額不足！\n* **乘客身分**：{simulated_user}\n* **剩餘餘額**：NT$ {user_info['balance']} (需 NT$ {actual_fare})"
+                    st.session_state.last_processed_pic_size = current_pic_size
+                    st.session_state.last_status_msg = error_msg
+                    status_placeholder.error(error_msg)
+        else:
+            if "成功" in st.session_state.last_status_msg:
+                status_placeholder.success(st.session_state.last_status_msg)
             else:
-                status_placeholder.error("### 🔴 查無註冊資料，請先在會員中心綁定生物特徵！")
-                
-        except Exception as e:
-            status_placeholder.error(f"系統錯誤：{e}")
+                status_placeholder.error(st.session_state.last_status_msg)
+    else:
+        status_placeholder.info("等待乘客拍攝上車照片...")
+        st.session_state.last_processed_pic_size = None

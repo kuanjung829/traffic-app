@@ -3,6 +3,7 @@ import streamlit as st
 import re
 import time
 import random
+import os  # 💡 補上缺少的 os 模組
 from database import save_db
 from ui_face import face_dialog
 
@@ -73,7 +74,6 @@ def topup_dialog(db, user_email):
         time.sleep(2)
         st.rerun()
 
-# ✨ 升級版：具備退款功能的歷史明細視窗
 @st.dialog("📜 歷史乘車明細")
 def history_dialog(db, user_email):
     user_data = db["users"][user_email]
@@ -82,7 +82,6 @@ def history_dialog(db, user_email):
         st.info("尚無乘車紀錄")
     else:
         for idx, h in enumerate(reversed(history_list[-5:])):
-            # 取得該筆資料原本在 list 中的真實位置 (以便修改狀態)
             real_idx = len(history_list) - 1 - idx
             actual_h = history_list[real_idx]
             
@@ -91,7 +90,6 @@ def history_dialog(db, user_email):
                 st.caption(f"🕒 {actual_h['time']}")
                 st.write(f"📍 {actual_h['start']} ➔ 🏁 {actual_h['end']}")
                 
-                # 檢查該筆交易的狀態
                 status = actual_h.get("status", "valid")
                 
                 if status == "refunded":
@@ -99,7 +97,6 @@ def history_dialog(db, user_email):
                 else:
                     st.write(f"**扣款金額**: NT$ {actual_h['fare']}")
                     
-                    # 計算經過時間 (以 180秒/3分鐘 作為模擬發車時間)
                     try:
                         book_time = time.strptime(actual_h['time'], "%Y-%m-%d %H:%M:%S")
                         diff_seconds = time.time() - time.mktime(book_time)
@@ -135,8 +132,8 @@ def render_sidebar(db, user_email):
 
     st.title("👤 會員專區")
     
-    if user_data["is_student"]:
-        st.markdown(f"### {user_data['school_abbr']} ({user_data['name']})")
+    if user_data.get("is_student"):
+        st.markdown(f"### {user_data.get('school_abbr', '學生')} ({user_data['name']})")
         st.success("✅ 學生票優惠啟用")
     else:
         st.markdown(f"### {user_data['name']}")
@@ -159,15 +156,19 @@ def render_sidebar(db, user_email):
     st.divider()
     
     # 🤖 2. 真實 AI 人臉識別區塊
-    st.markdown("### 🤖 真實人臉識別")
+    st.markdown("### 🤖 人臉識別存檔狀態")
     if user_data["face_verified"]:
         st.success("✅ 已完成生物驗證")
-        if user_data.get("face_image_path"):
-            st.image(user_data["face_image_path"], caption="您的人臉特徵", width=120)
+        
+        # 💡 [修復點] 強制讀取 PNG 檔案並加入存在檢查，防止報錯
+        face_path = f"../shared_data/face_photos/{user_email}.png"
+        if os.path.exists(face_path):
+            st.image(face_path, caption="您的人臉特徵", width=120)
+        else:
+            st.warning("⚠️ 照片檔案遺失，請重新拍照")
             
         if st.button("🔄 重新人臉拍照校正", use_container_width=True):
             user_data["face_verified"] = False
-            user_data["face_image_path"] = ""
             save_db(db)
             st.rerun()
     else:
@@ -224,7 +225,6 @@ def render_sidebar(db, user_email):
     st.markdown("### 🔧 專題展示專區")
     st.caption("評審與開發者測試專用入口")
     
-    # 使用 type="primary" 讓這個按鈕特別明顯 (紅色)
     if st.button("🚌 開啟實體驗票機模式", use_container_width=True, type="primary"):
         st.session_state.page = "scanner_mode"
         st.rerun()
