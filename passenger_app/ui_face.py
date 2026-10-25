@@ -2,16 +2,23 @@
 import streamlit as st
 import os
 import time
+import cv2
 import numpy as np
 from PIL import Image
-import mediapipe as mp
+import urllib.request
 from database import save_db
 
-# 💡 安全匯入 MediaPipe
-try:
-    mp_face_detection = mp.solutions.face_detection
-except AttributeError:
-    import mediapipe.python.solutions.face_detection as mp_face_detection
+def get_face_cascade():
+    # 自動下載 AI 模型檔案，確保絕對不會報錯
+    cascade_filename = "haarcascade_frontalface_default.xml"
+    if not os.path.exists(cascade_filename):
+        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+        try:
+            urllib.request.urlretrieve(url, cascade_filename)
+        except Exception as e:
+            st.error(f"下載 AI 模型失敗: {e}")
+            return None
+    return cv2.CascadeClassifier(cascade_filename)
 
 @st.dialog("📸 AI 人臉生物識別綁定")
 def face_dialog(db, user_email):
@@ -37,34 +44,30 @@ def face_dialog(db, user_email):
         picture = st.camera_input("請將臉部對準鏡頭並保持光源充足")
         
         if picture:
-            with st.spinner("Google AI 模型正在智能擷取臉部輪廓..."):
+            with st.spinner("OpenCV AI 模型正在智能擷取臉部輪廓..."):
                 try:
                     img = Image.open(picture).convert('RGB')
                     img_array = np.array(img)
                     
-                    # 🚀 啟動 MediaPipe 進行精準偵測
-                    with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detection:
-                        results = face_detection.process(img_array)
+                    face_cascade = get_face_cascade()
+                    if face_cascade is not None:
+                        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+                        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(60, 60))
                         
-                        if results.detections:
-                            # 取得第一張偵測到的臉
-                            detection = results.detections[0]
-                            h, w, _ = img_array.shape
+                        if len(faces) > 0:
+                            # 取最大的臉 (避免抓到背景雜訊)
+                            faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
+                            (x, y, w, h) = faces[0]
                             
-                            bboxC = detection.location_data.relative_bounding_box
-                            x1 = int(bboxC.xmin * w)
-                            y1 = int(bboxC.ymin * h)
-                            box_w = int(bboxC.width * w)
-                            box_h = int(bboxC.height * h)
+                            # 💡 為了讓大頭貼好看，稍微擴大裁切範圍
+                            margin_x = int(w * 0.25)
+                            margin_y = int(h * 0.3)
                             
-                            # 💡 為了讓大頭貼好看，稍微擴大裁切範圍 (留 20% 的邊距)
-                            margin_x = int(box_w * 0.2)
-                            margin_y = int(box_h * 0.2)
-                            
-                            x_start = max(0, x1 - margin_x)
-                            y_start = max(0, y1 - margin_y)
-                            x_end = min(w, x1 + box_w + margin_x)
-                            y_end = min(h, y1 + box_h + margin_y)
+                            img_h, img_w, _ = img_array.shape
+                            x_start = max(0, x - margin_x)
+                            y_start = max(0, y - margin_y)
+                            x_end = min(img_w, x + w + margin_x)
+                            y_end = min(img_h, y + h + margin_y)
                             
                             # ✂️ 矩陣裁切：只保留臉部區域的畫面
                             cropped_face = img_array[y_start:y_end, x_start:x_end]

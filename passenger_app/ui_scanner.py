@@ -35,7 +35,7 @@ def get_face_cascade():
 
 def render_scanner(cloud_db):
     st.title("🚌 新竹客運 雙資料庫測試驗票機")
-    st.caption("展示雲端與本機雙資料庫存檔架構 (含 AI 綠框視覺特效，沒臉不扣款版)")
+    st.caption("展示雲端與本機雙資料庫存檔架構 (含 AI 綠框視覺特效與智能裁切，沒臉不扣款版)")
     st.markdown("---")
 
     os.makedirs(SCAN_DIR, exist_ok=True)
@@ -72,43 +72,65 @@ def render_scanner(cloud_db):
         img = Image.open(picture).convert('RGB')
         img_array = np.array(img)
         
+        # 💡 準備兩張圖：一張用來畫綠框給畫面顯示，另一張用來裁切存檔
+        display_img = img_array.copy()
+        cropped_face = None 
+        
         # ==========================================
-        # 🤖 視覺特效：用 OpenCV 偵測並畫出綠色人臉定位框
+        # 🤖 視覺特效：用 OpenCV 偵測、畫綠框並裁切
         # ==========================================
         face_detected = False
         face_cascade = get_face_cascade()
         
         if face_cascade is not None:
             gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(50, 50))
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(60, 60))
             
-            for (x, y, w, h) in faces:
+            if len(faces) > 0:
                 face_detected = True
-                cv2.rectangle(img_array, (x, y), (x + w, y + h), (0, 255, 0), 4)
-                cv2.putText(img_array, "FACE TRACKED", (x, max(20, y - 10)), 
+                # 取最大的臉 (避免抓到背景雜訊)
+                faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
+                (x, y, w, h) = faces[0]
+                
+                # 1. 在顯示用的圖片上畫亮綠色方框
+                cv2.rectangle(display_img, (x, y), (x + w, y + h), (0, 255, 0), 4)
+                cv2.putText(display_img, "FACE TRACKED", (x, max(20, y - 10)), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                            
+                
+                # 2. 計算裁切範圍 (留白邊距，確保大頭貼完整)
+                margin_x = int(w * 0.25)
+                margin_y = int(h * 0.3)
+                img_h, img_w, _ = img_array.shape
+                
+                x_start = max(0, x - margin_x)
+                y_start = max(0, y - margin_y)
+                x_end = min(img_w, x + w + margin_x)
+                y_end = min(img_h, y + h + margin_y)
+                
+                # 3. ✂️ 從「沒有綠框的原始圖片」上，把臉部切下來準備存檔
+                cropped_face = img_array[y_start:y_end, x_start:x_end]
+                        
         with col_cam:
             if face_detected:
-                st.image(img_array, caption="🟢 AI 已鎖定臉部特徵框", use_container_width=True)
+                st.image(display_img, caption="🟢 AI 已鎖定臉部特徵框", use_container_width=True)
             else:
-                st.image(img_array, caption="⚠️ 未精準捕捉到完整正面五官，請正對鏡頭", use_container_width=True)
+                st.image(display_img, caption="⚠️ 未精準捕捉到完整正面五官，請正對鏡頭", use_container_width=True)
         # ==========================================
 
         if st.session_state.last_processed_pic_size != current_pic_size:
-            # 💡 攔截機制：必須確保 face_detected 是 True (有抓到臉) 才允許進入扣款流程
             if not face_detected:
                 error_msg = "### 🔴 扣款失敗：未偵測到人臉！\n系統無法確認乘客身分，請確保臉部清晰並直視鏡頭後再試一次。"
                 st.session_state.last_processed_pic_size = current_pic_size
                 st.session_state.last_status_msg = error_msg
                 status_placeholder.error(error_msg)
             else:
-                # 有抓到臉，繼續執行存證與扣款
+                # 執行存證與扣款
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 scan_filename = f"scan_{simulated_user}_{timestamp}.png"
                 scan_path = os.path.join(SCAN_DIR, scan_filename)
                 
-                Image.fromarray(img_array).save(scan_path, format="PNG")
+                # 💡 存檔時，只存裁切下來的大頭貼，不再存入包含背景的全圖！
+                Image.fromarray(cropped_face).save(scan_path, format="PNG")
                 
                 user_info = cloud_db["users"][simulated_user]
                 base_fare = 15
@@ -130,7 +152,7 @@ def render_scanner(cloud_db):
                     save_db(cloud_db)
                     save_local_bus_db(local_db)
                     
-                    success_msg = f"### 🟢 雙資料庫連線扣款成功！\n* **存證照片**：已加入 AI 綠框並存入資料夾\n* **乘客身分**：{user_info['name']}\n* **扣款金額**：NT$ {actual_fare}\n* **剩餘餘額**：NT$ {user_info['balance']}"
+                    success_msg = f"### 🟢 雙資料庫連線扣款成功！\n* **存證照片**：已智能裁切臉部特徵並存檔\n* **乘客身分**：{user_info['name']}\n* **扣款金額**：NT$ {actual_fare}\n* **剩餘餘額**：NT$ {user_info['balance']}"
                     
                     st.session_state.last_processed_pic_size = current_pic_size
                     st.session_state.last_status_msg = success_msg

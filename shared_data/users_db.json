@@ -13,11 +13,38 @@
                     "end": "新竹火車站",
                     "fare": 15,
                     "time": "2026-10-07 20:59:48"
+                },
+                {
+                    "route": "新竹客運 (實體機台掃描)",
+                    "start": "實體站牌上車",
+                    "end": "未知",
+                    "fare": 15,
+                    "time": "2026-10-20 19:28:33",
+                    "status": "valid"
+                },
+                {
+                    "route": "新竹客運 (實體機台掃描)",
+                    "start": "實體站牌上車",
+                    "end": "未知",
+                    "fare": 15,
+                    "time": "2026-10-20 20:41:34",
+                    "status": "valid"
+                },
+                {
+                    "route": "新竹客運 (實體機台掃描)",
+                    "start": "實體站牌上車",
+                    "end": "未知",
+                    "fare": 15,
+                    "time": "2026-10-22 20:34:17",
+                    "status": "valid"
                 }
             ],
-            "remember_me": false,
-            "balance": 35,
-            "face_verified": false
+            "remember_me": true,
+            "balance": 320,
+            "face_verified": true,
+            "phone": "0931514661",
+            "phone_verified": true,
+            "face_image_path": ""
         },
         "test1@kkhs.hc.edu.tw": {
             "name": "testuser1",
@@ -49,7 +76,7 @@
             "balance": 5,
             "phone": "0911111111",
             "phone_verified": true,
-            "remember_me": true,
+            "remember_me": false,
             "history": [
                 {
                     "route": "藍1區間車",

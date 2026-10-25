@@ -1,0 +1,342 @@
+{
+    "bus_id": "新竹客運-架構測試車",
+    "total_revenue": 720,
+    "transactions": [
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:27:53",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162752.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:27:55",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162755.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:33",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162833.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:35",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162835.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:38",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162838.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:40",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162840.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:43",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162843.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:46",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162846.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:48",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162848.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:51",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162851.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:53",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162853.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:56",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162856.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:28:58",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162858.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:01",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162901.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:03",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162903.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:06",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162906.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:09",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162909.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:11",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162911.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:14",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162914.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:16",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162916.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:19",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162919.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:21",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162921.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:24",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162924.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:26",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162926.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:29",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162929.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:32",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162932.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:34",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162934.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:37",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162937.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:39",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162939.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:42",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162942.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:44",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162944.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:47",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162947.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:50",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162950.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:52",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162952.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:55",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162955.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 16:29:57",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_162957.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 17:09:52",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_170952.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:50:36",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185036.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:52:57",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185257.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:57:12",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185712.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:57:28",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185728.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:57:40",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185740.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:58:09",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185809.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 18:58:51",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_185850.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 19:03:29",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_190329.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 19:03:40",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_190340.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 19:03:55",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_190355.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 19:17:26",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_191726.png"
+        }
+    ]
+}
