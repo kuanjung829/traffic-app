@@ -1,6 +1,6 @@
 {
     "bus_id": "新竹客運-架構測試車",
-    "total_revenue": 720,
+    "total_revenue": 735,
     "transactions": [
         {
             "passenger": "zonzon@gmail.com",
@@ -337,6 +337,13 @@
             "time": "2026-10-25 19:17:26",
             "status": "success",
             "scan_image": "scan_zonzon@gmail.com_20261025_191726.png"
+        },
+        {
+            "passenger": "zonzon@gmail.com",
+            "fare": 15,
+            "time": "2026-10-25 20:02:58",
+            "status": "success",
+            "scan_image": "scan_zonzon@gmail.com_20261025_200258.png"
         }
     ]
 }
