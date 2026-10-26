@@ -12,19 +12,16 @@ def render_navigation(db, user_email):
     if "history" not in user_data:
         user_data["history"] = []
 
-    # 找尋所有尚未搭乘的訂單
     pending_orders = [o for o in user_data["history"] if o.get("status") == "pending"]
 
     if pending_orders:
         st.subheader("📍 智能路線與預約搭乘")
         st.warning(f"⚠️ 您目前有 {len(pending_orders)} 段尚未搭乘的轉乘訂單！請依序上車刷臉，或取消剩餘預約。")
         
-        # 顯示下一趟要搭的車 (取陣列第一筆)
         next_order = pending_orders[0]
         st.write(f"**即將搭乘**: {next_order['route']}")
         st.write(f"**本段凍結票價**: NT$ {next_order['fare']}")
         
-        # 計算所有未搭乘的總凍結金額
         total_pending_fare = sum(o["fare"] for o in pending_orders)
 
         if st.button("❌ 取消剩餘所有預約 (退回未扣款項)", use_container_width=True):
@@ -40,19 +37,24 @@ def render_navigation(db, user_email):
     else:
         st.subheader("📍 智能路線與預約搭乘")
 
-        start_loc = st.text_input("📍 出發地", placeholder="例如：清華大學")
+        start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
         end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
         
-        mode = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 預約查詢 (同時設定出發與到達時間)"])
+        # 🌟 核心修改：更新 UI 選項，完美契合簡報中的「反向推算」功能
+        mode = st.radio("選擇查詢模式", [
+            "⚡ 即時查詢 (馬上出發)", 
+            "🛫 指定出發時間 (正向推算)", 
+            "🎯 預計抵達時間 (反向推算最晚出發時間)"
+        ])
 
         selected_date = None
         selected_time = None
-        if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
+        if mode != "⚡ 即時查詢 (馬上出發)":
             col1, col2 = st.columns(2)
             with col1:
-                selected_date = st.date_input("選擇出發日期")
+                selected_date = st.date_input("選擇日期")
             with col2:
-                selected_time = st.time_input("選擇出發時間")
+                selected_time = st.time_input("選擇時間")
 
         if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
             if not start_loc or not end_loc:
@@ -62,10 +64,18 @@ def render_navigation(db, user_email):
                     query_start = f"台灣 {start_loc}"
                     query_end = f"台灣 {end_loc}"
 
-                    if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
+                    # 🌟 根據不同模式，傳送 time_type 給 API 進行計算
+                    if mode == "🛫 指定出發時間 (正向推算)":
                         target_dt = datetime.datetime.combine(selected_date, selected_time)
-                        route_data = api_services.get_google_transit_route(query_start, query_end, mode="specific", target_datetime=target_dt)
-                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} ({selected_date} {selected_time} 出發)"
+                        route_data = api_services.get_google_transit_route(query_start, query_end, mode="specific", target_datetime=target_dt, time_type="departure")
+                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (預計 {selected_date} {selected_time} 出發)"
+                    
+                    elif mode == "🎯 預計抵達時間 (反向推算最晚出發時間)":
+                        target_dt = datetime.datetime.combine(selected_date, selected_time)
+                        # 啟動 API 的反向推算 (arrival) 邏輯
+                        route_data = api_services.get_google_transit_route(query_start, query_end, mode="specific", target_datetime=target_dt, time_type="arrival")
+                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (需在 {selected_date} {selected_time} 前抵達)"
+                    
                     else:
                         route_data = api_services.get_google_transit_route(query_start, query_end, mode="live")
                         st.session_state.search_title = f"{start_loc} ➔ {end_loc} (即時出發)"
@@ -83,7 +93,12 @@ def render_navigation(db, user_email):
             if data.get("status") != "success":
                 st.error(data.get("message", "路線查詢失敗，請重試。"))
             else:
-                st.write("💡 **詳細搭乘步驟與時間**")
+                # 若為反向推算，特別標示這是最晚出發時間
+                if "需在" in st.session_state.search_title:
+                    st.info("💡 **系統反向推算完成：為了準時抵達，建議您依據以下時間出發！**")
+                else:
+                    st.write("💡 **詳細搭乘步驟與時間**")
+                    
                 st.write(f"🕒 預計發車 : {data['dep_time_text']} 🏁 預計抵達 : {data['arr_time_text']}")
                 st.write(f"⏱ 總車程預估 : {data['travel_time']}")
 
@@ -112,13 +127,10 @@ def render_navigation(db, user_email):
                     actual_fare = base_fare
                     btn_text = f"💵 確認預約並凍結票價：NT$ {actual_fare}"
 
-                # 🌟 核心防呆修改：檢查是否已建模
                 if not user_data.get("face_verified"):
                     st.error("❌ 系統攔截：您尚未完成人臉識別註冊！請先至左側邊欄完成「拍照建模」，才能進行預約。")
-                    # 顯示灰色的禁用按鈕 (disabled=True)，讓使用者知道原本按鈕在哪但無法按
                     st.button(btn_text, use_container_width=True, type="primary", disabled=True)
                 else:
-                    # 已經建模才允許按下按鈕扣款
                     if st.button(btn_text, use_container_width=True, type="primary"):
                         if user_data["balance"] >= actual_fare:
                             user_data["balance"] -= actual_fare

@@ -1,4 +1,3 @@
-# api_services.py
 import requests
 import pandas as pd
 import streamlit as st
@@ -28,7 +27,8 @@ def get_tdx_token():
 def clean_html(raw_html):
     return re.sub(r'<.*?>', '', raw_html)
 
-def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發時間", target_datetime=None):
+# 🌟 核心修改：將函數參數替換為前端使用的 target_datetime 與 time_type
+def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=None, time_type="departure"):
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
         return {"status": "error", "message": "尚未設定 Google API 金鑰！"}
 
@@ -49,8 +49,12 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
         "key": GOOGLE_MAPS_API_KEY
     }
     
-    if mode == "specific" and time_mode == "預計抵達時間":
-        params["arrival_time"] = timestamp
+    # 🌟 根據 UI 傳來的 time_type，動態切換 Google Maps API 的正向/反向推算參數
+    if mode == "specific" and target_datetime:
+        if time_type == "arrival":
+            params["arrival_time"] = timestamp
+        else:
+            params["departure_time"] = timestamp
     else:
         params["departure_time"] = timestamp
             
@@ -68,7 +72,7 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
             dep_time_text = leg.get("departure_time", {}).get("text")
             arr_time_text = leg.get("arrival_time", {}).get("text")
             
-            # 🌟 自製時間累加器：如果 Google 沒給總時間，我們自己用 base_datetime 算
+            # 自製時間累加器：如果 Google 沒給總時間，我們自己用 base_datetime 算
             current_time_tracker = base_datetime
             if not dep_time_text:
                 dep_time_text = current_time_tracker.strftime("%H:%M")
@@ -100,7 +104,7 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", time_mode="出發
                     alight = details["arrival_stop"]["name"]
                     num_stops = details.get("num_stops", 0)
                     
-                    # 🌟 終極修復：先看 Google 有沒有給精確的 departure_time
+                    # 先看 Google 有沒有給精確的 departure_time
                     dep_t = details.get("departure_time", {}).get("text")
                     arr_t = details.get("arrival_time", {}).get("text")
                     
