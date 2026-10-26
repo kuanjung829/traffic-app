@@ -1,5 +1,6 @@
 streamlit
 streamlit-cookies-controller
+opencv-python-headless
 deepface
 werkzeug
 pandas
