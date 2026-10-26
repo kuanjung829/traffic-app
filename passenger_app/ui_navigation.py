@@ -1,6 +1,10 @@
 import streamlit as st
 import time
+import datetime
 from database import save_db
+
+# 🌟 引入你的強大 API 引擎
+import api_services 
 
 def render_navigation(db, user_email):
     user_data = db["users"][user_email]
@@ -10,7 +14,6 @@ def render_navigation(db, user_email):
     if "history" not in user_data:
         user_data["history"] = []
 
-    # 檢查是否有未完成訂單
     pending_orders = [o for o in user_data["history"] if o.get("status") == "pending"]
 
     if pending_orders:
@@ -30,7 +33,6 @@ def render_navigation(db, user_email):
             time.sleep(1)
             st.rerun()
     else:
-        # 完全還原你原本的介面設計
         st.subheader("📍 智能路線與預約搭乘")
 
         start_loc = st.text_input("📍 出發地", placeholder="例如：清華大學")
@@ -38,7 +40,6 @@ def render_navigation(db, user_email):
         
         mode = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 預約查詢 (同時設定出發與到達時間)"])
 
-        # 🌟 幫你把舊版被刪掉的時間選擇器完整加回來了
         selected_date = None
         selected_time = None
         if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
@@ -52,38 +53,81 @@ def render_navigation(db, user_email):
             if not start_loc or not end_loc:
                 st.error("請輸入出發地與目的地！")
             else:
-                # 根據選擇的模式，儲存不同的查詢結果字串
-                if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
-                    st.session_state.search_route = f"{start_loc} ➔ {end_loc} ({selected_date} {selected_time} 出發)"
-                else:
-                    st.session_state.search_route = f"{start_loc} ➔ {end_loc} (即時出發)"
+                with st.spinner("📡 正在透過 TDX 與 Google Maps API 計算最佳路線..."):
+                    # 判斷時間模式並呼叫你的 API
+                    if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
+                        target_dt = datetime.datetime.combine(selected_date, selected_time)
+                        route_data = api_services.get_google_transit_route(start_loc, end_loc, mode="specific", target_datetime=target_dt)
+                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} ({selected_date} {selected_time} 出發)"
+                    else:
+                        route_data = api_services.get_google_transit_route(start_loc, end_loc, mode="live")
+                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (即時出發)"
+                    
+                    # 將 API 查詢結果存入暫存
+                    st.session_state.route_data = route_data
 
-        # 顯示查詢結果與確認預約按鈕
-        if "search_route" in st.session_state:
+        if "route_data" in st.session_state:
+            data = st.session_state.route_data
+            
             st.markdown("---")
-            st.write(f"### 查詢結果：{st.session_state.search_route}")
+            st.write(f"### 查詢結果：{st.session_state.search_title}")
 
-            base_fare = 15
-            actual_fare = int(base_fare * 0.8) if user_data.get("is_student") else base_fare
-            st.info(f"此路線預估票價： NT$ {actual_fare}")
+            if data.get("status") != "success":
+                # 如果 API 找不到路線，顯示錯誤訊息
+                st.error(data.get("message", "路線查詢失敗，請重試。"))
+            else:
+                # 🌟 成功抓到資料，開始將真實資料綁定到你的排版上！
+                st.write("💡 **詳細搭乘步驟與時間**")
+                
+                # 綁定真實的發車、抵達與總車程時間
+                st.write(f"🕒 預計發車 : {data['dep_time_text']} 🏁 預計抵達 : {data['arr_time_text']}")
+                st.write(f"⏱ 總車程預估 : {data['travel_time']}")
 
-            if st.button("✅ 確認預約 (凍結票價)", use_container_width=True):
-                if user_data["balance"] >= actual_fare:
-                    user_data["balance"] -= actual_fare
-                    user_data["frozen_balance"] += actual_fare
+                # 迴圈讀取 transit_legs，把每段走路跟公車畫出來
+                for leg in data["transit_legs"]:
+                    if leg["type"] == "WALKING":
+                        st.info(f"🚶 **步行 ( {leg['duration']} )** : {leg['instruction']}")
+                    elif leg["type"] == "TRANSIT":
+                        with st.container(border=True):
+                            st.markdown(f"🚌 **搭乘 【{leg['bus_name']}】**")
+                            
+                            # 結合 TDX API 拿到的真實營運 ETA
+                            bus_eta = data.get("eta", "正常營運")
+                            
+                            st.caption(f"營運狀態: 🟢 {bus_eta} | 乘車時間: {leg['duration']} ({leg['num_stops']}站)")
+                            st.write(f"📍 **上車**: {leg['board']} ({leg['dep_time']})")
+                            st.write(f"🏁 **下車**: {leg['alight']} ({leg['arr_time']})")
+                
+                st.write("") 
 
-                    new_order = {
-                        "route": st.session_state.search_route,
-                        "fare": actual_fare,
-                        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "status": "pending"
-                    }
-                    user_data["history"].append(new_order)
-                    save_db(db)
-
-                    del st.session_state.search_route 
-                    st.success("🎉 預約成功！款項已暫時凍結，上車刷臉時才會正式扣款。")
-                    time.sleep(1.5)
-                    st.rerun()
+                # 動態計算票價，並加上學生優惠邏輯
+                base_fare = data.get("fare", 15) # 抓取 Google API 算出的票價，預設 15 元
+                if user_data.get("is_student"):
+                    actual_fare = int(base_fare * 0.8)
+                    btn_text = f"💵 確認預約並凍結票價：NT$ {actual_fare} (已套用學生 8 折)"
                 else:
-                    st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
+                    actual_fare = base_fare
+                    btn_text = f"💵 確認預約並凍結票價：NT$ {actual_fare}"
+
+                if st.button(btn_text, use_container_width=True, type="primary"):
+                    if user_data["balance"] >= actual_fare:
+                        user_data["balance"] -= actual_fare
+                        user_data["frozen_balance"] += actual_fare
+
+                        new_order = {
+                            "route": st.session_state.search_title,
+                            "fare": actual_fare,
+                            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "status": "pending"
+                        }
+                        user_data["history"].append(new_order)
+                        save_db(db)
+
+                        del st.session_state.route_data
+                        del st.session_state.search_title
+                        
+                        st.success("🎉 預約成功！款項已暫時凍結，上車刷臉時才會正式扣款。")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
