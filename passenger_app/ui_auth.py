@@ -26,18 +26,27 @@ def render_auth(db):
         reg_email = st.text_input("註冊信箱", key="reg_email")
         reg_name = st.text_input("真實姓名", key="reg_name")
         reg_pwd = st.text_input("設定密碼", type="password", key="reg_pwd")
+        
+        # 🎓 動態條件判斷：勾選後才會出現學校輸入框
         is_student = st.checkbox("我是學生 (享有票價優惠)")
+        school_abbr = ""
+        if is_student:
+            school_abbr = st.text_input("請輸入學校簡稱 (例如：磐石高中)", key="reg_school")
         
         if st.button("📝 註冊帳號", use_container_width=True):
             if reg_email in db["users"]:
                 st.error("❌ 此信箱已被註冊！")
             elif not reg_email or not reg_pwd or not reg_name:
-                st.error("❌ 請完整填寫資料！")
+                st.error("❌ 請完整填寫基本資料！")
+            elif is_student and not school_abbr:
+                # 🛑 防呆機制：勾了學生卻沒填學校，嚴格擋下
+                st.error("❌ 勾選學生身分請務必填寫學校簡稱！")
             else:
                 db["users"][reg_email] = {
                     "name": reg_name,
                     "pwd": reg_pwd,
                     "is_student": is_student,
+                    "school_abbr": school_abbr,  # 將學校紀錄存入資料庫
                     "balance": 0,
                     "frozen_balance": 0,
                     "face_verified": False,
