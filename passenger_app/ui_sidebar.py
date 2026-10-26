@@ -11,7 +11,6 @@ from database import save_db
 def credit_card_dialog(db, user_email):
     st.write("綁定信用卡後即可啟用線上儲值功能")
     
-    # 完全還原你的字數限制與防呆
     card_num = st.text_input("信用卡卡號 (16碼數字)", max_chars=16, placeholder="例如：4311952222222222")
     valid_thru = st.text_input("有效期限 (MM/YY)", max_chars=5, placeholder="例如：12/28")
     cvv = st.text_input("安全碼 (3碼)", type="password", max_chars=3)
@@ -45,7 +44,6 @@ def recharge_dialog(db, user_email):
 # 📱 手機綁定與模擬簡訊彈出視窗
 @st.dialog("📱 綁定手機領取 50 元")
 def phone_dialog(db, user_email):
-    # 初始化 Session State 來記住驗證碼
     if "sms_code" not in st.session_state:
         st.session_state.sms_code = None
         
@@ -55,12 +53,10 @@ def phone_dialog(db, user_email):
         if not phone.startswith("09") or len(phone) != 10:
             st.error("❌ 請輸入正確的 10 碼手機號碼 (必須為 09 開頭)")
         else:
-            # 產生 6 位數隨機驗證碼並存入暫存
             st.session_state.sms_code = str(random.randint(100000, 999999))
             st.session_state.temp_phone = phone
-            st.rerun() # 重整畫面以顯示下方簡訊區塊
+            # 🌟 已經把這裡的 st.rerun() 刪除了！現在按發送，視窗絕對不會關掉。
             
-    # 如果已經發送過驗證碼，顯示模擬簡訊與輸入框
     if st.session_state.sms_code:
         st.success("驗證碼已發送！請查看下方模擬簡訊。")
         st.info(f"💬 **【模擬簡訊】** 您的 6 位數驗證碼為： **{st.session_state.sms_code}**")
@@ -69,18 +65,16 @@ def phone_dialog(db, user_email):
         
         if st.button("確認驗證並獲得 50 元", use_container_width=True, type="primary"):
             if entered_code == st.session_state.sms_code:
-                # 驗證成功，存入資料庫並加 50 元
                 db["users"][user_email]["phone"] = st.session_state.temp_phone
                 db["users"][user_email]["balance"] += 50
                 save_db(db)
                 
-                # 清除暫存
                 del st.session_state.sms_code
                 del st.session_state.temp_phone
                 
                 st.success("✅ 綁定成功！已發放 NT$ 50 乘車金。")
                 time.sleep(1.5)
-                st.rerun()
+                st.rerun() # 🌟 只有在驗證成功後，才呼叫重整來關閉視窗並刷新餘額
             else:
                 st.error("❌ 驗證碼錯誤，請重新輸入！")
 
