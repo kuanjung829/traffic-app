@@ -112,48 +112,52 @@ def render_navigation(db, user_email):
                     actual_fare = base_fare
                     btn_text = f"💵 確認預約並凍結票價：NT$ {actual_fare}"
 
-                if st.button(btn_text, use_container_width=True, type="primary"):
-                    if user_data["balance"] >= actual_fare:
-                        user_data["balance"] -= actual_fare
-                        user_data["frozen_balance"] += actual_fare
+                # 🌟 核心防呆修改：檢查是否已建模
+                if not user_data.get("face_verified"):
+                    st.error("❌ 系統攔截：您尚未完成人臉識別註冊！請先至左側邊欄完成「拍照建模」，才能進行預約。")
+                    # 顯示灰色的禁用按鈕 (disabled=True)，讓使用者知道原本按鈕在哪但無法按
+                    st.button(btn_text, use_container_width=True, type="primary", disabled=True)
+                else:
+                    # 已經建模才允許按下按鈕扣款
+                    if st.button(btn_text, use_container_width=True, type="primary"):
+                        if user_data["balance"] >= actual_fare:
+                            user_data["balance"] -= actual_fare
+                            user_data["frozen_balance"] += actual_fare
 
-                        # 🌟 核心修改：分段拆解訂單邏輯 (Station by Station)
-                        transit_legs = [leg for leg in data["transit_legs"] if leg["type"] == "TRANSIT"]
-                        num_legs = len(transit_legs)
+                            transit_legs = [leg for leg in data["transit_legs"] if leg["type"] == "TRANSIT"]
+                            num_legs = len(transit_legs)
 
-                        if num_legs > 0:
-                            # 將總票價平均分配給每一段搭乘
-                            fare_per_leg = actual_fare // num_legs
-                            remainder = actual_fare % num_legs
-                            
-                            for i, leg in enumerate(transit_legs):
-                                # 確保除不盡的餘額加在第一趟，總額吻合
-                                leg_fare = fare_per_leg + (remainder if i == 0 else 0)
+                            if num_legs > 0:
+                                fare_per_leg = actual_fare // num_legs
+                                remainder = actual_fare % num_legs
+                                
+                                for i, leg in enumerate(transit_legs):
+                                    leg_fare = fare_per_leg + (remainder if i == 0 else 0)
+                                    new_order = {
+                                        "route": f"【{leg['bus_name']}】 {leg['board']} ➔ {leg['alight']}",
+                                        "fare": leg_fare,
+                                        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        "status": "pending"
+                                    }
+                                    user_data["history"].append(new_order)
+                            else:
                                 new_order = {
-                                    "route": f"【{leg['bus_name']}】 {leg['board']} ➔ {leg['alight']}",
-                                    "fare": leg_fare,
+                                    "route": st.session_state.search_title,
+                                    "fare": actual_fare,
                                     "time": time.strftime("%Y-%m-%d %H:%M:%S"),
                                     "status": "pending"
                                 }
-                                user_data["history"].append(new_order) # 寫入好幾張分段車票
+                                user_data["history"].append(new_order)
+
+                            save_db(db)
+
+                            st.session_state.pop("route_data", None)
+                            st.session_state.pop("search_title", None)
+                            st.session_state.pop("dyn_start", None)
+                            st.session_state.pop("dyn_end", None)
+                            
+                            st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
+                            time.sleep(1.5)
+                            st.rerun()
                         else:
-                            new_order = {
-                                "route": st.session_state.search_title,
-                                "fare": actual_fare,
-                                "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-                                "status": "pending"
-                            }
-                            user_data["history"].append(new_order)
-
-                        save_db(db)
-
-                        st.session_state.pop("route_data", None)
-                        st.session_state.pop("search_title", None)
-                        st.session_state.pop("dyn_start", None)
-                        st.session_state.pop("dyn_end", None)
-                        
-                        st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
+                            st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
