@@ -1,5 +1,8 @@
 streamlit
-opencv-contrib-python-headless
-Pillow
-numpy
 streamlit-cookies-controller
+opencv-python-headless
+deepface
+pandas
+numpy
+Pillow
+requests
