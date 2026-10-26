@@ -3,9 +3,40 @@ import os
 import time
 from PIL import Image
 from ui_face import face_dialog
-from database import save_db  # 確保有引入 save_db 來存檔
+from database import save_db
 
-# 🌟 幫你加回來的：手機綁定彈出視窗 (綁定加50元)
+# 💳 綁定信用卡彈出視窗
+@st.dialog("💳 綁定信用卡")
+def credit_card_dialog(db, user_email):
+    st.write("綁定信用卡後即可啟用線上儲值功能")
+    card_num = st.text_input("信用卡卡號", placeholder="例如：4311-9522-2222-2222")
+    valid_thru = st.text_input("有效期限 (MM/YY)", placeholder="例如：12/28")
+    cvv = st.text_input("安全碼 (CVV)", type="password", max_chars=3)
+    
+    if st.button("確認綁定", use_container_width=True):
+        if card_num and valid_thru and cvv:
+            # 為了資安考量與展示，資料庫只儲存卡號後 4 碼
+            db["users"][user_email]["credit_card"] = card_num[-4:]
+            save_db(db)
+            st.success("✅ 信用卡綁定成功！您現在可以使用儲值功能了。")
+            time.sleep(1.5)
+            st.rerun()
+        else:
+            st.error("❌ 請完整填寫信用卡資訊")
+
+# 💳 儲值系統彈出視窗
+@st.dialog("💳 虛擬錢包儲值")
+def recharge_dialog(db, user_email):
+    st.write(f"使用已綁定信用卡 (尾數 {db['users'][user_email].get('credit_card')}) 進行扣款")
+    amount = st.selectbox("選擇儲值金額", [100, 200, 500, 1000, 2000])
+    if st.button("確認付款並儲值", use_container_width=True):
+        db["users"][user_email]["balance"] += amount
+        save_db(db)
+        st.success(f"✅ 成功儲值 NT$ {amount}！")
+        time.sleep(1.5)
+        st.rerun()
+
+# 📱 手機綁定彈出視窗
 @st.dialog("📱 手機綁定與驗證")
 def phone_dialog(db, user_email):
     st.write("完成手機綁定即可領取 NT$ 50 乘車金！")
@@ -21,18 +52,6 @@ def phone_dialog(db, user_email):
         else:
             st.error("❌ 請輸入手機號碼")
 
-# 🌟 幫你加回來的：儲值系統彈出視窗
-@st.dialog("💳 虛擬錢包儲值")
-def recharge_dialog(db, user_email):
-    st.write("線上信用卡/行動支付儲值")
-    amount = st.selectbox("選擇儲值金額", [100, 200, 500, 1000, 2000])
-    if st.button("確認付款並儲值", use_container_width=True):
-        db["users"][user_email]["balance"] += amount
-        save_db(db)
-        st.success(f"✅ 成功儲值 NT$ {amount}！")
-        time.sleep(1.5)
-        st.rerun()
-
 def render_sidebar(db, user_email, controller):
     user_data = db["users"][user_email]
 
@@ -46,15 +65,23 @@ def render_sidebar(db, user_email, controller):
 
     st.sidebar.divider() 
 
-    # 💳 錢包與儲值區塊
-    st.sidebar.subheader("💳 虛擬錢包餘額")
+    # 💳 信用卡與儲值區塊
+    st.sidebar.subheader("💳 信用卡與儲值")
     st.sidebar.metric(label="可用餘額", value=f"NT$ {user_data['balance']}")
     if user_data.get("frozen_balance", 0) > 0:
         st.sidebar.caption(f"❄️ 另有 NT$ {user_data['frozen_balance']} 預約凍結中")
     
     st.sidebar.write("")
-    if st.sidebar.button("💰 前往儲值", use_container_width=True):
-        recharge_dialog(db, user_email)
+    
+    # 判斷是否已綁定信用卡，切換顯示的按鈕
+    if user_data.get("credit_card"):
+        st.sidebar.success(f"✅ 已綁定信用卡 (尾數 {user_data['credit_card']})")
+        if st.sidebar.button("💰 前往儲值", use_container_width=True):
+            recharge_dialog(db, user_email)
+    else:
+        st.sidebar.warning("⚠️ 尚未綁定信用卡")
+        if st.sidebar.button("👉 前往綁定信用卡", use_container_width=True):
+            credit_card_dialog(db, user_email)
 
     st.sidebar.divider()
 
