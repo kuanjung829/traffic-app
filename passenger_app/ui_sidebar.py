@@ -1,8 +1,37 @@
 import streamlit as st
 import os
-import time  # 🌟 引入時間模組
+import time
 from PIL import Image
 from ui_face import face_dialog
+from database import save_db  # 確保有引入 save_db 來存檔
+
+# 🌟 幫你加回來的：手機綁定彈出視窗 (綁定加50元)
+@st.dialog("📱 手機綁定與驗證")
+def phone_dialog(db, user_email):
+    st.write("完成手機綁定即可領取 NT$ 50 乘車金！")
+    phone = st.text_input("請輸入手機號碼")
+    if st.button("確認綁定", use_container_width=True):
+        if phone:
+            db["users"][user_email]["phone"] = phone
+            db["users"][user_email]["balance"] += 50
+            save_db(db)
+            st.success("✅ 綁定成功！已發放 NT$ 50 乘車金。")
+            time.sleep(1.5)
+            st.rerun()
+        else:
+            st.error("❌ 請輸入手機號碼")
+
+# 🌟 幫你加回來的：儲值系統彈出視窗
+@st.dialog("💳 虛擬錢包儲值")
+def recharge_dialog(db, user_email):
+    st.write("線上信用卡/行動支付儲值")
+    amount = st.selectbox("選擇儲值金額", [100, 200, 500, 1000, 2000])
+    if st.button("確認付款並儲值", use_container_width=True):
+        db["users"][user_email]["balance"] += amount
+        save_db(db)
+        st.success(f"✅ 成功儲值 NT$ {amount}！")
+        time.sleep(1.5)
+        st.rerun()
 
 def render_sidebar(db, user_email, controller):
     user_data = db["users"][user_email]
@@ -17,13 +46,19 @@ def render_sidebar(db, user_email, controller):
 
     st.sidebar.divider() 
 
+    # 💳 錢包與儲值區塊
     st.sidebar.subheader("💳 虛擬錢包餘額")
     st.sidebar.metric(label="可用餘額", value=f"NT$ {user_data['balance']}")
     if user_data.get("frozen_balance", 0) > 0:
         st.sidebar.caption(f"❄️ 另有 NT$ {user_data['frozen_balance']} 預約凍結中")
+    
+    st.sidebar.write("")
+    if st.sidebar.button("💰 前往儲值", use_container_width=True):
+        recharge_dialog(db, user_email)
 
     st.sidebar.divider()
 
+    # 📱 手機驗證區塊
     st.sidebar.subheader("📱 手機驗證 (領取50元)")
     if user_data.get("phone"):
         st.sidebar.success(f"✅ 已綁定: {user_data['phone']}")
@@ -31,10 +66,11 @@ def render_sidebar(db, user_email, controller):
         st.sidebar.warning("⚠️ 尚未綁定手機")
         st.sidebar.write("") 
         if st.sidebar.button("👉 前往綁定手機", use_container_width=True):
-            st.toast("手機綁定功能開發中！", icon="🛠️") 
+            phone_dialog(db, user_email)
 
     st.sidebar.divider() 
 
+    # 😁 人臉識別存檔狀態
     st.sidebar.subheader("😁 人臉識別存檔狀態")
     if user_data.get("face_verified"):
         st.sidebar.success("✅ 已完成生物驗證")
@@ -55,6 +91,7 @@ def render_sidebar(db, user_email, controller):
 
     st.sidebar.divider() 
 
+    # 🧭 系統導覽
     st.sidebar.subheader("🧭 系統導覽")
     menu = st.sidebar.radio("選擇模式", ["預約與搭乘", "驗票機模擬"], label_visibility="collapsed")
     
@@ -63,7 +100,7 @@ def render_sidebar(db, user_email, controller):
         st.session_state.logged_in_user = None
         controller.remove("logged_in_user")
         st.sidebar.success("正在登出系統...")
-        time.sleep(1.5) # 🌟 關鍵修復：強迫等待 1.5 秒，確保 Cookie 徹底刪除
+        time.sleep(1.5)
         st.rerun()
         
     return menu
