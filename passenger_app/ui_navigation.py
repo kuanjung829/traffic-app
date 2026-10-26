@@ -35,14 +35,28 @@ def render_navigation(db, user_email):
 
         start_loc = st.text_input("📍 出發地", placeholder="例如：清華大學")
         end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
+        
         mode = st.radio("選擇查詢模式", ["⚡ 即時查詢 (馬上出發)", "🕒 預約查詢 (同時設定出發與到達時間)"])
+
+        # 🌟 幫你把舊版被刪掉的時間選擇器完整加回來了
+        selected_date = None
+        selected_time = None
+        if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
+            col1, col2 = st.columns(2)
+            with col1:
+                selected_date = st.date_input("選擇出發日期")
+            with col2:
+                selected_time = st.time_input("選擇出發時間")
 
         if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
             if not start_loc or not end_loc:
                 st.error("請輸入出發地與目的地！")
             else:
-                # 將查詢結果存入 session_state，讓下方的預約按鈕可以出現
-                st.session_state.search_route = f"{start_loc} ➔ {end_loc}"
+                # 根據選擇的模式，儲存不同的查詢結果字串
+                if mode == "🕒 預約查詢 (同時設定出發與到達時間)":
+                    st.session_state.search_route = f"{start_loc} ➔ {end_loc} ({selected_date} {selected_time} 出發)"
+                else:
+                    st.session_state.search_route = f"{start_loc} ➔ {end_loc} (即時出發)"
 
         # 顯示查詢結果與確認預約按鈕
         if "search_route" in st.session_state:
@@ -67,7 +81,7 @@ def render_navigation(db, user_email):
                     user_data["history"].append(new_order)
                     save_db(db)
 
-                    del st.session_state.search_route # 下單後清除暫存結果
+                    del st.session_state.search_route 
                     st.success("🎉 預約成功！款項已暫時凍結，上車刷臉時才會正式扣款。")
                     time.sleep(1.5)
                     st.rerun()

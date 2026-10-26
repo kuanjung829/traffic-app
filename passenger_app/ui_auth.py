@@ -1,4 +1,5 @@
 import streamlit as st
+import time  # 🌟 引入時間模組
 from database import save_db
 
 def render_auth(db, controller):
@@ -15,11 +16,14 @@ def render_auth(db, controller):
             if email in db["users"] and db["users"][email].get("pwd") == pwd:
                 st.session_state.logged_in_user = email
                 
-                # 🌟 如果勾選保持登入，寫入瀏覽器 Cookie (保存 30 天)
                 if remember_me:
                     controller.set("logged_in_user", email, max_age=30*24*60*60)
+                    st.success("登入成功！正在寫入安全憑證...")
+                    time.sleep(1.5) # 🌟 關鍵修復：強迫等待 1.5 秒，確保 Cookie 寫入瀏覽器
+                else:
+                    st.success("登入成功！")
+                    time.sleep(0.5)
                     
-                st.success("登入成功！")
                 st.rerun()
             else:
                 st.error("❌ 帳號或密碼錯誤！")

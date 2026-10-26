@@ -15,17 +15,15 @@ db = load_db()
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 
-# 🌟 啟動時先檢查瀏覽器是否存有 Cookie
+# 啟動時先檢查瀏覽器是否存有 Cookie
 saved_user = controller.get("logged_in_user")
 if saved_user and st.session_state.logged_in_user is None:
     st.session_state.logged_in_user = saved_user
 
 if st.session_state.logged_in_user is None:
-    # 把控制器傳給驗證頁面，以便登入時寫入 Cookie
     render_auth(db, controller)
 else:
     user_email = st.session_state.logged_in_user
-    # 把控制器傳給側邊欄，以便登出時刪除 Cookie
     menu = render_sidebar(db, user_email, controller)
     
     if menu == "驗票機模擬":

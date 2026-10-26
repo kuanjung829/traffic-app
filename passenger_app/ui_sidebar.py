@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import time  # 🌟 引入時間模組
 from PIL import Image
 from ui_face import face_dialog
 
@@ -60,8 +61,9 @@ def render_sidebar(db, user_email, controller):
     st.sidebar.write("") 
     if st.sidebar.button("🚪 登出系統", use_container_width=True):
         st.session_state.logged_in_user = None
-        # 🌟 登出時一併刪除瀏覽器底層的 Cookie 記憶
         controller.remove("logged_in_user")
+        st.sidebar.success("正在登出系統...")
+        time.sleep(1.5) # 🌟 關鍵修復：強迫等待 1.5 秒，確保 Cookie 徹底刪除
         st.rerun()
         
     return menu
