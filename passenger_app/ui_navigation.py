@@ -40,21 +40,22 @@ def render_navigation(db, user_email):
         start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
         end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
         
-        # 🌟 核心修改：更新 UI 選項，完美契合簡報中的「反向推算」功能
+        # 🌟 UI 融合：改成簡潔的兩種模式
         mode = st.radio("選擇查詢模式", [
             "⚡ 即時查詢 (馬上出發)", 
-            "🛫 指定出發時間 (正向推算)", 
-            "🎯 預計抵達時間 (反向推算最晚出發時間)"
+            "🕒 特定查詢 (同時設定出發與到達時間)"
         ])
 
         selected_date = None
-        selected_time = None
-        if mode != "⚡ 即時查詢 (馬上出發)":
-            col1, col2 = st.columns(2)
-            with col1:
-                selected_date = st.date_input("選擇日期")
-            with col2:
-                selected_time = st.time_input("選擇時間")
+        selected_start_time = None
+        selected_end_time = None
+
+        if mode == "🕒 特定查詢 (同時設定出發與到達時間)":
+            st.markdown("⚙️ **請設定您的行程時間範圍 (系統將為您尋找最貼切的班次)**")
+            selected_date = st.date_input("選擇日期")
+            # 採用直式排列，完美重現手機版 App 介面
+            selected_start_time = st.time_input("🕒 預計出發時間")
+            selected_end_time = st.time_input("🏁 希望抵達時間")
 
         if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
             if not start_loc or not end_loc:
@@ -64,18 +65,13 @@ def render_navigation(db, user_email):
                     query_start = f"台灣 {start_loc}"
                     query_end = f"台灣 {end_loc}"
 
-                    # 🌟 根據不同模式，傳送 time_type 給 API 進行計算
-                    if mode == "🛫 指定出發時間 (正向推算)":
-                        target_dt = datetime.datetime.combine(selected_date, selected_time)
-                        route_data = api_services.get_google_transit_route(query_start, query_end, mode="specific", target_datetime=target_dt, time_type="departure")
-                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (預計 {selected_date} {selected_time} 出發)"
-                    
-                    elif mode == "🎯 預計抵達時間 (反向推算最晚出發時間)":
-                        target_dt = datetime.datetime.combine(selected_date, selected_time)
-                        # 啟動 API 的反向推算 (arrival) 邏輯
+                    if mode == "🕒 特定查詢 (同時設定出發與到達時間)":
+                        # 核心邏輯：提取「希望抵達時間」去呼叫 API 進行反向推算
+                        target_dt = datetime.datetime.combine(selected_date, selected_end_time)
                         route_data = api_services.get_google_transit_route(query_start, query_end, mode="specific", target_datetime=target_dt, time_type="arrival")
-                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (需在 {selected_date} {selected_time} 前抵達)"
-                    
+                        
+                        st.session_state.search_title = f"{start_loc} ➔ {end_loc} (需在 {selected_date} {selected_end_time.strftime('%H:%M')} 前抵達)"
+                        st.session_state.user_start_time = selected_start_time # 存下出發時間準備進行智慧比對
                     else:
                         route_data = api_services.get_google_transit_route(query_start, query_end, mode="live")
                         st.session_state.search_title = f"{start_loc} ➔ {end_loc} (即時出發)"
@@ -93,9 +89,21 @@ def render_navigation(db, user_email):
             if data.get("status") != "success":
                 st.error(data.get("message", "路線查詢失敗，請重試。"))
             else:
-                # 若為反向推算，特別標示這是最晚出發時間
                 if "需在" in st.session_state.search_title:
                     st.info("💡 **系統反向推算完成：為了準時抵達，建議您依據以下時間出發！**")
+                    
+                    # 🌟 智慧時間管理：比對「API算出的最晚發車時間」與「乘客設定的預計出發時間」
+                    if "user_start_time" in st.session_state:
+                        api_dep_time_str = data.get('dep_time_text', '')
+                        user_start_time = st.session_state.user_start_time
+                        try:
+                            api_dep_time = datetime.datetime.strptime(api_dep_time_str, "%H:%M").time()
+                            if api_dep_time < user_start_time:
+                                st.warning(f"⚠️ **時間衝突提醒**：系統反推最晚必須在 **{api_dep_time_str}** 出發，這比您設定的預計出發時間 ({user_start_time.strftime('%H:%M')}) 還早！建議您提早出門。")
+                            else:
+                                st.success(f"✅ **行程銜接順利**：您可以在 {user_start_time.strftime('%H:%M')} 之後從容出發，只要搭上 **{api_dep_time_str}** 的班次即可。")
+                        except:
+                            pass
                 else:
                     st.write("💡 **詳細搭乘步驟與時間**")
                     
