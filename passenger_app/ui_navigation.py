@@ -2,7 +2,6 @@ import streamlit as st
 import time
 import datetime
 from database import save_db
-
 import api_services 
 
 def render_navigation(db, user_email):
@@ -13,23 +12,30 @@ def render_navigation(db, user_email):
     if "history" not in user_data:
         user_data["history"] = []
 
+    # 找尋所有尚未搭乘的訂單
     pending_orders = [o for o in user_data["history"] if o.get("status") == "pending"]
 
     if pending_orders:
         st.subheader("📍 智能路線與預約搭乘")
-        active_order = pending_orders[-1]
-        st.warning("⚠️ 您目前有一筆尚未搭乘的預約訂單！請先完成搭乘或取消預約。")
-        st.write(f"**預約路線**: {active_order['route']}")
-        st.write(f"**凍結票價**: NT$ {active_order['fare']}")
-        st.write(f"**下單時間**: {active_order['time']}")
+        st.warning(f"⚠️ 您目前有 {len(pending_orders)} 段尚未搭乘的轉乘訂單！請依序上車刷臉，或取消剩餘預約。")
+        
+        # 顯示下一趟要搭的車 (取陣列第一筆)
+        next_order = pending_orders[0]
+        st.write(f"**即將搭乘**: {next_order['route']}")
+        st.write(f"**本段凍結票價**: NT$ {next_order['fare']}")
+        
+        # 計算所有未搭乘的總凍結金額
+        total_pending_fare = sum(o["fare"] for o in pending_orders)
 
-        if st.button("❌ 取消預約 (退回凍結款項)", use_container_width=True):
-            user_data["balance"] += active_order["fare"]
-            user_data["frozen_balance"] -= active_order["fare"]
-            active_order["status"] = "canceled"
+        if st.button("❌ 取消剩餘所有預約 (退回未扣款項)", use_container_width=True):
+            for o in user_data["history"]:
+                if o.get("status") == "pending":
+                    user_data["balance"] += o["fare"]
+                    user_data["frozen_balance"] -= o["fare"]
+                    o["status"] = "canceled"
             save_db(db)
-            st.success("✅ 已成功取消訂單，款項已解凍並退回可用餘額！")
-            time.sleep(1)
+            st.success(f"✅ 已成功取消後續行程，共解凍退回 NT$ {total_pending_fare}！")
+            time.sleep(1.5)
             st.rerun()
     else:
         st.subheader("📍 智能路線與預約搭乘")
@@ -53,7 +59,6 @@ def render_navigation(db, user_email):
                 st.error("請輸入出發地與目的地！")
             else:
                 with st.spinner("📡 正在透過 TDX 與 Google Maps API 計算最佳路線..."):
-                    
                     query_start = f"台灣 {start_loc}"
                     query_end = f"台灣 {end_loc}"
 
@@ -112,22 +117,42 @@ def render_navigation(db, user_email):
                         user_data["balance"] -= actual_fare
                         user_data["frozen_balance"] += actual_fare
 
-                        new_order = {
-                            "route": st.session_state.search_title,
-                            "fare": actual_fare,
-                            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-                            "status": "pending"
-                        }
-                        user_data["history"].append(new_order)
+                        # 🌟 核心修改：分段拆解訂單邏輯 (Station by Station)
+                        transit_legs = [leg for leg in data["transit_legs"] if leg["type"] == "TRANSIT"]
+                        num_legs = len(transit_legs)
+
+                        if num_legs > 0:
+                            # 將總票價平均分配給每一段搭乘
+                            fare_per_leg = actual_fare // num_legs
+                            remainder = actual_fare % num_legs
+                            
+                            for i, leg in enumerate(transit_legs):
+                                # 確保除不盡的餘額加在第一趟，總額吻合
+                                leg_fare = fare_per_leg + (remainder if i == 0 else 0)
+                                new_order = {
+                                    "route": f"【{leg['bus_name']}】 {leg['board']} ➔ {leg['alight']}",
+                                    "fare": leg_fare,
+                                    "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "status": "pending"
+                                }
+                                user_data["history"].append(new_order) # 寫入好幾張分段車票
+                        else:
+                            new_order = {
+                                "route": st.session_state.search_title,
+                                "fare": actual_fare,
+                                "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                "status": "pending"
+                            }
+                            user_data["history"].append(new_order)
+
                         save_db(db)
 
-                        # 🌟 安全清除暫存機制 (已修正 KeyError Bug)
                         st.session_state.pop("route_data", None)
                         st.session_state.pop("search_title", None)
                         st.session_state.pop("dyn_start", None)
                         st.session_state.pop("dyn_end", None)
                         
-                        st.success("🎉 預約成功！款項已暫時凍結，上車刷臉時才會正式扣款。")
+                        st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
                         time.sleep(1.5)
                         st.rerun()
                     else:

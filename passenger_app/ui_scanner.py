@@ -1,4 +1,3 @@
-# passenger_app/ui_scanner.py
 import streamlit as st
 import os
 import json
@@ -117,13 +116,13 @@ def render_scanner(cloud_db):
                 
                 if not pending_orders:
                     # ⛔ 沒下訂單，拒絕扣款
-                    error_msg = f"### 🔴 拒絕登車：找不到預約訂單！\n* 乘客 **{user_info['name']}** 尚未在 APP 下單，無法扣款。\n* 請先預約路線後再上車刷臉。"
+                    error_msg = f"### 🔴 拒絕登車：找不到預約訂單！\n乘客 **{user_info['name']}** 尚未在 APP 下單，無法扣款。\n請先預約路線後再上車刷臉。"
                     st.session_state.last_processed_pic_size = current_pic_size
                     st.session_state.last_status_msg = error_msg
                     status_placeholder.error(error_msg)
                 else:
-                    # ✅ 有訂單，抓取最近一筆進行正式扣款
-                    active_order = pending_orders[-1]
+                    # ✅ 有訂單，抓取最前面第一筆進行正式扣款 (分段搭乘邏輯)
+                    active_order = pending_orders[0]
                     actual_fare = active_order["fare"]
                     
                     if user_info["frozen_balance"] >= actual_fare:
@@ -151,7 +150,7 @@ def render_scanner(cloud_db):
                         save_db(cloud_db)
                         save_local_bus_db(local_db)
                         
-                        success_msg = f"### 🟢 驗票成功！\n* **搭乘路線**：{active_order['route']}\n* **乘客身分**：{user_info['name']}\n* **正式扣款**：NT$ {actual_fare} (自凍結款項扣除)\n* **可用餘額**：NT$ {user_info['balance']}"
+                        success_msg = f"### 🟢 驗票成功！\n**搭乘路線**：{active_order['route']}\n**乘客身分**：{user_info['name']}\n**正式扣款**：NT$ {actual_fare} (自凍結款項扣除)\n**可用餘額**：NT$ {user_info['balance']}"
                         
                         st.session_state.last_processed_pic_size = current_pic_size
                         st.session_state.last_status_msg = success_msg
