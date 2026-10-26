@@ -30,8 +30,8 @@ def render_auth(db, controller):
                 
     elif choice == "註冊新帳號":
         reg_name = st.text_input("使用者名稱", key="reg_name")
-        # 提示使用者可以使用教育信箱
-        reg_email = st.text_input("Gmail (信箱 / 填寫 .edu.tw 結尾自動享學生優惠)", key="reg_email")
+        # 🌟 已經將括號內的提示文字刪除，恢復乾淨介面
+        reg_email = st.text_input("Gmail (信箱)", key="reg_email")
         reg_pwd = st.text_input("密碼", type="password", key="reg_pwd")
         reg_pwd_confirm = st.text_input("確認密碼", type="password", key="reg_pwd_confirm")
         
@@ -43,7 +43,7 @@ def render_auth(db, controller):
             elif reg_pwd != reg_pwd_confirm:
                 st.error("❌ 兩次輸入的密碼不一致！")
             else:
-                # 🎓 自動判斷學生身分：檢查信箱是否以 .edu.tw 結尾
+                # 🎓 自動判斷學生身分：檢查信箱是否以 .edu.tw 結尾 (背景默默執行)
                 is_student = reg_email.strip().lower().endswith(".edu.tw")
                 school_abbr = "教育局認證學校" if is_student else ""
                 
