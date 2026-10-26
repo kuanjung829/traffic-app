@@ -27,14 +27,12 @@ def get_tdx_token():
 def clean_html(raw_html):
     return re.sub(r'<.*?>', '', raw_html)
 
-# 🌟 核心修改：將函數參數替換為前端使用的 target_datetime 與 time_type
 def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=None, time_type="departure"):
     if not GOOGLE_MAPS_API_KEY or GOOGLE_MAPS_API_KEY == '請填寫你的GOOGLE_MAPS_API金鑰':
         return {"status": "error", "message": "尚未設定 Google API 金鑰！"}
 
     url = "https://maps.googleapis.com/maps/api/directions/json"
     
-    # 決定行程的基準時間
     base_datetime = datetime.datetime.now()
     if mode == "specific" and target_datetime:
         base_datetime = target_datetime
@@ -49,7 +47,6 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
         "key": GOOGLE_MAPS_API_KEY
     }
     
-    # 🌟 根據 UI 傳來的 time_type，動態切換 Google Maps API 的正向/反向推算參數
     if mode == "specific" and target_datetime:
         if time_type == "arrival":
             params["arrival_time"] = timestamp
@@ -66,23 +63,39 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
             route = data["routes"][0]
             leg = route["legs"][0]
             real_fare = route.get("fare", {}).get("value", 15)
-            total_duration = leg["duration"]["text"]
+            total_duration_text = leg["duration"]["text"]
+            total_duration_sec = leg["duration"].get("value", 0)
             
-            # 取得總行程時間
             dep_time_text = leg.get("departure_time", {}).get("text")
             arr_time_text = leg.get("arrival_time", {}).get("text")
             
-            # 自製時間累加器：如果 Google 沒給總時間，我們自己用 base_datetime 算
-            current_time_tracker = base_datetime
-            if not dep_time_text:
-                dep_time_text = current_time_tracker.strftime("%H:%M")
+            # 🌟 核心修復：正確處理正向與反向推算的時間基準點
+            if time_type == "arrival":
+                # 反向推算：已知抵達時間，回推發車時間
+                if not arr_time_text:
+                    arr_time_text = base_datetime.strftime("%H:%M")
+                if not dep_time_text:
+                    # 用 抵達時間 減去 總車程，精準逆推發車時間
+                    calculated_dep = base_datetime - timedelta(seconds=total_duration_sec)
+                    dep_time_text = calculated_dep.strftime("%H:%M")
+                # 設定追蹤器起點為「減去車程後的真實出發時間」
+                current_time_tracker = base_datetime - timedelta(seconds=total_duration_sec)
             else:
-                # 嘗試把 Google 吐出來的時間 (如 16:20) 轉回 datetime 物件作為起始點
-                try:
-                    time_obj = datetime.datetime.strptime(dep_time_text, "%H:%M")
-                    current_time_tracker = current_time_tracker.replace(hour=time_obj.hour, minute=time_obj.minute)
-                except:
-                    pass
+                # 正向推算：已知出發時間，推算抵達時間
+                if not dep_time_text:
+                    dep_time_text = base_datetime.strftime("%H:%M")
+                if not arr_time_text:
+                    calculated_arr = base_datetime + timedelta(seconds=total_duration_sec)
+                    arr_time_text = calculated_arr.strftime("%H:%M")
+                # 設定追蹤器起點為「出發時間」
+                current_time_tracker = base_datetime
+
+            # 校準時間追蹤器
+            try:
+                dt_obj = datetime.datetime.strptime(dep_time_text, "%H:%M")
+                current_time_tracker = current_time_tracker.replace(hour=dt_obj.hour, minute=dt_obj.minute)
+            except:
+                pass
 
             transit_legs = []
             path_coords = []
@@ -90,8 +103,6 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
             
             for step in leg["steps"]:
                 path_coords.append({"lat": step["start_location"]["lat"], "lon": step["start_location"]["lng"]})
-                
-                # 取得這一段花費的秒數，用來累加時間
                 step_seconds = step["duration"].get("value", 0)
                 step_duration_text = step["duration"]["text"]
                 
@@ -104,21 +115,16 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
                     alight = details["arrival_stop"]["name"]
                     num_stops = details.get("num_stops", 0)
                     
-                    # 先看 Google 有沒有給精確的 departure_time
                     dep_t = details.get("departure_time", {}).get("text")
                     arr_t = details.get("arrival_time", {}).get("text")
                     
-                    # 如果 Google 沒給（空值），我們就用 current_time_tracker 自己推算！
                     if not dep_t:
                         dep_t = current_time_tracker.strftime("%H:%M")
                     
-                    # 加上搭車時間，推算抵達時間
                     arrival_time_tracker = current_time_tracker + timedelta(seconds=step_seconds)
-                    
                     if not arr_t:
                         arr_t = arrival_time_tracker.strftime("%H:%M")
                         
-                    # 更新累加器，準備算下一段
                     current_time_tracker = arrival_time_tracker
                     
                     transit_legs.append({
@@ -130,17 +136,12 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
                         "duration": step_duration_text
                     })
                 elif step["travel_mode"] == "WALKING":
-                    # 走路也要算進時間累加器裡
                     current_time_tracker = current_time_tracker + timedelta(seconds=step_seconds)
                     transit_legs.append({
                         "type": "WALKING", "instruction": clean_html(step.get("html_instructions", "步行")),
                         "duration": step_duration_text
                     })
             
-            # 如果總行程沒給抵達時間，用最後的累加時間當作抵達時間
-            if not arr_time_text:
-                arr_time_text = current_time_tracker.strftime("%H:%M")
-                
             path_coords.append({"lat": leg["end_location"]["lat"], "lon": leg["end_location"]["lng"]})
             coords_df = pd.DataFrame(path_coords)
             
@@ -155,7 +156,7 @@ def get_google_transit_route(start_loc, dest_loc, mode="live", target_datetime=N
                     break
             return {
                 "status": "success", "transit_legs": transit_legs, 
-                "eta": eta, "travel_time": total_duration, 
+                "eta": eta, "travel_time": total_duration_text, 
                 "dep_time_text": dep_time_text, "arr_time_text": arr_time_text,
                 "coords": coords_df, "fare": real_fare
             }
