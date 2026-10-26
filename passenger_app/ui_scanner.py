@@ -8,6 +8,9 @@ from PIL import Image
 import urllib.request
 from database import save_db
 
+# 🌟 引入強大的 DeepFace 深度學習套件
+from deepface import DeepFace
+
 LOCAL_BUS_DB_PATH = "../shared_data/local_bus_transactions.json"
 SCAN_DIR = "../shared_data/bus_scans"
 
@@ -33,7 +36,7 @@ def get_face_cascade():
 
 def render_scanner(cloud_db):
     st.title("🚌 新竹客運 雙資料庫驗票機")
-    st.caption("具備 AI 視覺裁切、訂單查驗與預先授權(凍結扣款)機制")
+    st.caption("具備 AI 視覺裁切、深度特徵比對與預先授權(凍結扣款)機制")
     st.markdown("---")
 
     os.makedirs(SCAN_DIR, exist_ok=True)
@@ -106,60 +109,86 @@ def render_scanner(cloud_db):
                 status_placeholder.error(error_msg)
             else:
                 user_info = cloud_db["users"][simulated_user]
+                reference_pic_path = f"../shared_data/face_photos/{simulated_user}.png"
                 
-                # 初始化防呆
-                if "frozen_balance" not in user_info: user_info["frozen_balance"] = 0
-                if "history" not in user_info: user_info["history"] = []
-                
-                # 🔍 核心防呆機制：檢查該帳號有沒有下訂單
-                pending_orders = [o for o in user_info["history"] if o.get("status") == "pending"]
-                
-                if not pending_orders:
-                    # ⛔ 沒下訂單，拒絕扣款
-                    error_msg = f"### 🔴 拒絕登車：找不到預約訂單！\n乘客 **{user_info['name']}** 尚未在 APP 下單，無法扣款。\n請先預約路線後再上車刷臉。"
+                # 確保該帳號的註冊照片檔案真的存在
+                if not os.path.exists(reference_pic_path):
+                    error_msg = f"### 🔴 系統異常：找不到 {user_info['name']} 的註冊基準照片！"
                     st.session_state.last_processed_pic_size = current_pic_size
                     st.session_state.last_status_msg = error_msg
                     status_placeholder.error(error_msg)
                 else:
-                    # ✅ 有訂單，抓取最前面第一筆進行正式扣款 (分段搭乘邏輯)
-                    active_order = pending_orders[0]
-                    actual_fare = active_order["fare"]
+                    is_match = False
                     
-                    if user_info["frozen_balance"] >= actual_fare:
-                        # 將錢從凍結餘額中扣除 (代表這筆錢已經交給客運公司)
-                        user_info["frozen_balance"] -= actual_fare
-                        active_order["status"] = "completed"  # 標記為已搭乘
-                        
-                        # 儲存照片與日誌
-                        timestamp = time.strftime("%Y%m%d_%H%M%S")
-                        scan_filename = f"scan_{simulated_user}_{timestamp}.png"
-                        scan_path = os.path.join(SCAN_DIR, scan_filename)
-                        Image.fromarray(cropped_face).save(scan_path, format="PNG")
-                        
-                        current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                        local_db["total_revenue"] += actual_fare
-                        local_db["transactions"].append({
-                            "passenger": simulated_user,
-                            "route": active_order["route"],
-                            "fare": actual_fare,
-                            "time": current_time,
-                            "status": "success",
-                            "scan_image": scan_filename
-                        })
-                        
-                        save_db(cloud_db)
-                        save_local_bus_db(local_db)
-                        
-                        success_msg = f"### 🟢 驗票成功！\n**搭乘路線**：{active_order['route']}\n**乘客身分**：{user_info['name']}\n**正式扣款**：NT$ {actual_fare} (自凍結款項扣除)\n**可用餘額**：NT$ {user_info['balance']}"
-                        
-                        st.session_state.last_processed_pic_size = current_pic_size
-                        st.session_state.last_status_msg = success_msg
-                        status_placeholder.success(success_msg)
-                    else:
-                        error_msg = f"### 🔴 系統異常：凍結餘額不足扣款！"
+                    # 🌟 核心防盜刷機制：啟動 DeepFace 進行兩張照片的深度特徵比對
+                    with st.spinner("🤖 正在進行 DeepFace 深度人臉特徵比對..."):
+                        try:
+                            # 丟入即時拍到的照片 (img_array) 與資料庫照片 (reference_pic_path)
+                            result = DeepFace.verify(
+                                img1_path = img_array, 
+                                img2_path = reference_pic_path,
+                                enforce_detection = False # 因為 OpenCV 已經偵測過臉了，這裡設為 False 避免過度嚴格導致當機
+                            )
+                            is_match = result.get("verified", False)
+                        except Exception as e:
+                            st.error(f"AI 比對過程發生異常: {e}")
+                            is_match = False
+
+                    if not is_match:
+                        # ⛔ 非本人，觸發防盜刷機制，強制拒絕扣款
+                        error_msg = f"### 🔴 拒絕登車：非本人！\n畫面中的乘客與 **{user_info['name']}** 的註冊資料不符，防盜刷機制已啟動。"
                         st.session_state.last_processed_pic_size = current_pic_size
                         st.session_state.last_status_msg = error_msg
                         status_placeholder.error(error_msg)
+                    else:
+                        # ✅ 比對成功，確定是本人，進入訂單檢查與扣款邏輯
+                        if "frozen_balance" not in user_info: user_info["frozen_balance"] = 0
+                        if "history" not in user_info: user_info["history"] = []
+                        
+                        pending_orders = [o for o in user_info["history"] if o.get("status") == "pending"]
+                        
+                        if not pending_orders:
+                            error_msg = f"### 🔴 拒絕登車：找不到預約訂單！\n乘客 **{user_info['name']}** 尚未在 APP 下單，無法扣款。\n請先預約路線後再上車刷臉。"
+                            st.session_state.last_processed_pic_size = current_pic_size
+                            st.session_state.last_status_msg = error_msg
+                            status_placeholder.error(error_msg)
+                        else:
+                            active_order = pending_orders[0]
+                            actual_fare = active_order["fare"]
+                            
+                            if user_info["frozen_balance"] >= actual_fare:
+                                user_info["frozen_balance"] -= actual_fare
+                                active_order["status"] = "completed" 
+                                
+                                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                                scan_filename = f"scan_{simulated_user}_{timestamp}.png"
+                                scan_path = os.path.join(SCAN_DIR, scan_filename)
+                                Image.fromarray(cropped_face).save(scan_path, format="PNG")
+                                
+                                current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                                local_db["total_revenue"] += actual_fare
+                                local_db["transactions"].append({
+                                    "passenger": simulated_user,
+                                    "route": active_order["route"],
+                                    "fare": actual_fare,
+                                    "time": current_time,
+                                    "status": "success",
+                                    "scan_image": scan_filename
+                                })
+                                
+                                save_db(cloud_db)
+                                save_local_bus_db(local_db)
+                                
+                                success_msg = f"### 🟢 AI 驗證與扣款成功！\n**身分比對**：相符 ({user_info['name']})\n**搭乘路線**：{active_order['route']}\n**正式扣款**：NT$ {actual_fare} (自凍結款項扣除)\n**可用餘額**：NT$ {user_info['balance']}"
+                                
+                                st.session_state.last_processed_pic_size = current_pic_size
+                                st.session_state.last_status_msg = success_msg
+                                status_placeholder.success(success_msg)
+                            else:
+                                error_msg = f"### 🔴 系統異常：凍結餘額不足扣款！"
+                                st.session_state.last_processed_pic_size = current_pic_size
+                                st.session_state.last_status_msg = error_msg
+                                status_placeholder.error(error_msg)
         else:
             if "成功" in st.session_state.last_status_msg:
                 status_placeholder.success(st.session_state.last_status_msg)
