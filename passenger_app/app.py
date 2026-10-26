@@ -1,4 +1,10 @@
 import streamlit as st
+import os
+import time
+# 🌟 關鍵修復：強制將雲端主機的時區切換為台灣時間 (UTC+8)
+os.environ['TZ'] = 'Asia/Taipei'
+if hasattr(time, 'tzset'):
+    time.tzset()
 from database import load_db
 from ui_auth import render_auth
 from ui_sidebar import render_sidebar
