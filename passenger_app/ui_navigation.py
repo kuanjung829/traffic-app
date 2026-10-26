@@ -95,7 +95,6 @@ def render_navigation(db, user_email):
                 
                 st.write("") 
 
-                # 🌟 補回地圖顯示區塊
                 if "coords" in data and not data["coords"].empty:
                     st.map(data["coords"])
                     st.write("")
@@ -122,10 +121,11 @@ def render_navigation(db, user_email):
                         user_data["history"].append(new_order)
                         save_db(db)
 
-                        del st.session_state.route_data
-                        del st.session_state.search_title
-                        del st.session_state.dyn_start
-                        del st.session_state.dyn_end
+                        # 🌟 安全清除暫存機制 (已修正 KeyError Bug)
+                        st.session_state.pop("route_data", None)
+                        st.session_state.pop("search_title", None)
+                        st.session_state.pop("dyn_start", None)
+                        st.session_state.pop("dyn_end", None)
                         
                         st.success("🎉 預約成功！款項已暫時凍結，上車刷臉時才會正式扣款。")
                         time.sleep(1.5)
