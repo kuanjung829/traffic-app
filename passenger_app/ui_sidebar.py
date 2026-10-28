@@ -55,7 +55,6 @@ def phone_dialog(db, user_email):
         else:
             st.session_state.sms_code = str(random.randint(100000, 999999))
             st.session_state.temp_phone = phone
-            # 🌟 已經把這裡的 st.rerun() 刪除了！現在按發送，視窗絕對不會關掉。
             
     if st.session_state.sms_code:
         st.success("驗證碼已發送！請查看下方模擬簡訊。")
@@ -74,11 +73,23 @@ def phone_dialog(db, user_email):
                 
                 st.success("✅ 綁定成功！已發放 NT$ 50 乘車金。")
                 time.sleep(1.5)
-                st.rerun() # 🌟 只有在驗證成功後，才呼叫重整來關閉視窗並刷新餘額
+                st.rerun()
             else:
                 st.error("❌ 驗證碼錯誤，請重新輸入！")
 
 def render_sidebar(db, user_email, controller):
+    # 🌟 幽靈帳號防禦機制：確保 Cookie 記住的帳號真的存在於資料庫
+    if "users" not in db or user_email not in db.get("users", {}):
+        st.session_state.logged_in_user = None
+        try:
+            controller.remove("logged_in_user")
+        except Exception:
+            pass
+        time.sleep(0.5)
+        st.rerun()
+        return None
+
+    # 原本的完整邏輯
     user_data = db["users"][user_email]
 
     st.sidebar.title("👤 會員專區")
@@ -150,7 +161,10 @@ def render_sidebar(db, user_email, controller):
     st.sidebar.write("") 
     if st.sidebar.button("🚪 登出系統", use_container_width=True):
         st.session_state.logged_in_user = None
-        controller.remove("logged_in_user")
+        try:
+            controller.remove("logged_in_user")
+        except Exception:
+            pass
         st.sidebar.success("正在登出系統...")
         time.sleep(1.5)
         st.rerun()
