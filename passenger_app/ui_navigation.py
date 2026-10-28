@@ -1,9 +1,27 @@
 import streamlit as st
 import time
 import datetime
+import re
 from database import save_db
 import api_services 
 import streamlit.components.v1 as components
+
+# 🌟 智慧時間過濾器：專門對付 Google 傳回的「下午 8:16」這類非標準時間格式
+def extract_24h_time(time_text):
+    try:
+        nums = re.findall(r'\d+', time_text)
+        if len(nums) >= 2:
+            h = int(nums[0])
+            m = int(nums[1])
+            # 轉換為 24 小時制
+            if "下午" in time_text or "pm" in time_text.lower():
+                if h < 12: h += 12
+            elif "上午" in time_text or "am" in time_text.lower():
+                if h == 12: h = 0
+            return f"{h:02d}:{m:02d}:00"
+    except:
+        pass
+    return time.strftime("%H:%M:00")
 
 def render_navigation(db, user_email):
     user_data = db["users"][user_email]
@@ -15,7 +33,6 @@ def render_navigation(db, user_email):
 
     pending_orders = [o for o in user_data["history"] if o.get("status") == "pending"]
 
-    # 🌟 UI 優化：使用 Tabs 分頁
     tab1, tab2 = st.tabs(["🗺️ 路線規劃與搭乘", "📜 我的歷史訂單"])
 
     # ==========================================
@@ -27,63 +44,70 @@ def render_navigation(db, user_email):
             
             next_order = pending_orders[0]
             dep_dt_str = next_order.get("dep_datetime")
+            dep_dt = None
             is_expired = False
             
-            # 🌟 核心防呆：倒數計時與違約扣款機制
+            # 1. 嘗試解析資料庫裡的時間
             if dep_dt_str:
                 try:
                     dep_dt = datetime.datetime.strptime(dep_dt_str, "%Y-%m-%d %H:%M:%S")
-                    # 設定 1 分鐘停靠緩衝時間
-                    deadline_dt = dep_dt + datetime.timedelta(minutes=1)
-                    now = datetime.datetime.now()
-                    
-                    if now > deadline_dt:
-                        is_expired = True
-                        # 逾時未上車，執行違約扣款
-                        user_data["frozen_balance"] -= next_order["fare"]
-                        next_order["status"] = "missed"
-                        save_db(db)
-                        
-                        st.error(f"🚨 **違約扣款通知**\n\n您未於發車與停靠緩衝時間內上車 ({next_order['route']})，系統已自動沒收並扣除違約車資 NT$ {next_order['fare']}。")
-                        if st.button("🔄 刷新頁面", use_container_width=True):
-                            st.rerun()
-                    else:
-                        # 計算給 JS 使用的時間戳記
-                        deadline_ts = int(deadline_dt.timestamp() * 1000)
-                        
-                        countdown_html = f"""
-                        <div style="background-color:#fff3cd; border:1px solid #ffeeba; color:#856404; padding:15px; border-radius:10px; text-align:center; font-family:sans-serif; margin-bottom:10px;">
-                            <div style="font-size:16px; margin-bottom:5px;">🚌 <b>{next_order['route']}</b></div>
-                            <div style="font-size:14px; color:#666;">預計發車：{dep_dt.strftime('%H:%M')} (含 1 分鐘靠站寬限)</div>
-                            <h2 style="margin:10px 0 5px 0; color:#dc3545; font-weight:bold;" id="timer">計算中...</h2>
-                        </div>
-                        <script>
-                            var countDownDate = {deadline_ts};
-                            var x = setInterval(function() {{
-                                var now = new Date().getTime();
-                                var distance = countDownDate - now;
-                                if (distance < 0) {{
-                                    clearInterval(x);
-                                    document.getElementById("timer").innerHTML = "時間已到，車輛已駛離！";
-                                }} else {{
-                                    var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                                    var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                                    var seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                                    
-                                    var timeStr = "";
-                                    if(hours > 0) timeStr += hours + "時 ";
-                                    timeStr += minutes + "分 " + seconds + "秒";
-                                    document.getElementById("timer").innerHTML = "⏳ 剩餘 " + timeStr;
-                                }}
-                            }}, 1000);
-                        </script>
-                        """
-                        components.html(countdown_html, height=140)
-                except Exception as e:
+                except:
                     pass
             
+            # 2. 終極防呆：如果解析失敗（遇到髒資料）或舊訂單，拿「下單時間 + 5分鐘」作為預設發車時間保底
+            if not dep_dt:
+                try:
+                    order_time = datetime.datetime.strptime(next_order.get("time", time.strftime("%Y-%m-%d %H:%M:%S")), "%Y-%m-%d %H:%M:%S")
+                    dep_dt = order_time + datetime.timedelta(minutes=5)
+                except:
+                    dep_dt = datetime.datetime.now() + datetime.timedelta(minutes=5)
+
+            # 3. 正常執行倒數邏輯 (1 分鐘緩衝)
+            deadline_dt = dep_dt + datetime.timedelta(minutes=1)
+            now = datetime.datetime.now()
+            
+            if now > deadline_dt:
+                is_expired = True
+                user_data["frozen_balance"] -= next_order["fare"]
+                next_order["status"] = "missed"
+                save_db(db)
+                
+                st.error(f"🚨 **違約扣款通知**\n\n您未於發車與停靠緩衝時間內上車 ({next_order['route']})，系統已自動沒收並扣除違約車資 NT$ {next_order['fare']}。")
+                if st.button("🔄 刷新頁面", use_container_width=True):
+                    st.rerun()
+            else:
+                deadline_ts = int(deadline_dt.timestamp() * 1000)
+                
+                countdown_html = f"""
+                <div style="background-color:#fff3cd; border:1px solid #ffeeba; color:#856404; padding:15px; border-radius:10px; text-align:center; font-family:sans-serif; margin-bottom:10px;">
+                    <div style="font-size:16px; margin-bottom:5px;">🚌 <b>{next_order['route']}</b></div>
+                    <div style="font-size:14px; color:#666;">預計發車：{dep_dt.strftime('%H:%M')} (含 1 分鐘靠站寬限)</div>
+                    <h2 style="margin:10px 0 5px 0; color:#dc3545; font-weight:bold;" id="timer">計算中...</h2>
+                </div>
+                <script>
+                    var countDownDate = {deadline_ts};
+                    var x = setInterval(function() {{
+                        var now = new Date().getTime();
+                        var distance = countDownDate - now;
+                        if (distance < 0) {{
+                            clearInterval(x);
+                            document.getElementById("timer").innerHTML = "時間已到，車輛已駛離！";
+                        }} else {{
+                            var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                            var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                            
+                            var timeStr = "";
+                            if(hours > 0) timeStr += hours + "時 ";
+                            timeStr += minutes + "分 " + seconds + "秒";
+                            document.getElementById("timer").innerHTML = "⏳ 剩餘 " + timeStr;
+                        }}
+                    }}, 1000);
+                </script>
+                """
+                components.html(countdown_html, height=140)
+            
             if not is_expired:
-                # 尚未逾時，顯示原本的取消按鈕
                 st.write(f"**本段凍結票價**: NT$ {next_order['fare']}")
                 total_pending_fare = sum(o["fare"] for o in pending_orders)
 
@@ -252,7 +276,9 @@ def render_navigation(db, user_email):
                                     
                                     for i, leg in enumerate(transit_legs):
                                         leg_fare = fare_per_leg + (remainder if i == 0 else 0)
-                                        dep_datetime_str = f"{journey_date_str} {leg['dep_time']}:00"
+                                        # 🌟 強制過濾時間格式，確保寫入資料庫的時間永遠是安全的 24 小時制！
+                                        safe_time = extract_24h_time(leg['dep_time'])
+                                        dep_datetime_str = f"{journey_date_str} {safe_time}"
                                         
                                         new_order = {
                                             "route": f"【{leg['bus_name']}】 {leg['board']} ➔ {leg['alight']}",
