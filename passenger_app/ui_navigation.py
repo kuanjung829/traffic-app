@@ -31,20 +31,19 @@ def render_navigation(db, user_email):
                     user_data["frozen_balance"] -= o["fare"]
                     o["status"] = "canceled"
             save_db(db)
-            st.success(f"✅ 已成功取消後續行程，共解凍退回 NT$ {total_pending_fare}！")
+            # 🌟 UI 優化：換成輕量化 Toast 推播
+            st.toast(f"✅ 已成功取消後續行程，共解凍退回 NT$ {total_pending_fare}！", icon="💸")
             time.sleep(1.5)
             st.rerun()
     else:
         st.subheader("📍 智能路線與預約搭乘")
 
-        # 📱 表單並排收納：大幅節省畫面垂直空間
         loc_col1, loc_col2 = st.columns(2)
         with loc_col1:
             start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
         with loc_col2:
             end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
         
-        # 將單選按鈕改成橫向排列
         mode = st.radio("選擇查詢模式", [
             "⚡ 即時查詢 (馬上出發)", 
             "🕒 特定查詢 (同時設定出發與到達時間)"
@@ -117,36 +116,44 @@ def render_navigation(db, user_email):
                         except:
                             st.info("💡 **系統反向推算完成：建議您依據以下時間出發！**")
                 else:
-                    st.write("💡 **詳細搭乘步驟與時間**")
+                    st.write("💡 **詳細搭乘路線**")
                     
-                st.write(f"🕒 預計發車 : {data['dep_time_text']} 🏁 預計抵達 : {data['arr_time_text']}")
-                st.write(f"⏱ 總車程預估 : {data['travel_time']}")
+                st.write(f"🕒 總車程預估：**{data['travel_time']}**")
 
                 for leg in data["transit_legs"]:
                     if leg["type"] == "WALKING":
-                        st.info(f"🚶 **步行 ( {leg['duration']} )** : {leg['instruction']}")
+                        st.info(f"🚶 **步行 ({leg['duration']})** : {leg['instruction']}")
                     elif leg["type"] == "TRANSIT":
+                        # 🌟 UI 優化：質感電子車票卡片設計
                         with st.container(border=True):
-                            st.markdown(f"🚌 **搭乘 【{leg['bus_name']}】**")
-                            bus_eta = data.get("eta", "正常營運")
-                            st.caption(f"營運狀態: 🟢 {bus_eta} | 乘車時間: {leg['duration']} ({leg['num_stops']}站)")
-                            st.write(f"📍 **上車**: {leg['board']} ({leg['dep_time']})")
-                            st.write(f"🏁 **下車**: {leg['alight']} ({leg['arr_time']})")
+                            col1, col2 = st.columns([2, 1])
+                            with col1:
+                                st.markdown(f"**🚌 {leg['bus_name']}**")
+                            with col2:
+                                bus_eta = data.get("eta", "正常營運")
+                                st.markdown(f"<div style='text-align:right; color:#28a745; font-size:14px; font-weight:bold;'>🟢 {bus_eta}</div>", unsafe_allow_html=True)
+                            
+                            # 排版：起點 ➔ 路線資訊 ➔ 終點
+                            t_col1, t_col2, t_col3 = st.columns([3, 2, 3])
+                            with t_col1:
+                                st.markdown(f"<h3 style='margin-bottom:0px; padding-bottom:0px;'>{leg['dep_time']}</h3><span style='color:gray; font-size:14px;'>{leg['board']}</span>", unsafe_allow_html=True)
+                            with t_col2:
+                                st.markdown(f"<div style='text-align:center; color:#888; margin-top:15px; font-size:13px;'>━━ {leg['num_stops']}站 ━━<br>{leg['duration']}</div>", unsafe_allow_html=True)
+                            with t_col3:
+                                st.markdown(f"<h3 style='margin-bottom:0px; padding-bottom:0px; text-align:right;'>{leg['arr_time']}</h3><div style='text-align:right;'><span style='color:gray; font-size:14px;'>{leg['alight']}</span></div>", unsafe_allow_html=True)
                 
                 st.write("") 
 
-                # 🗺️ 地圖優化：加工座標資料，加上顏色與大小屬性
                 if "coords" in data and not data["coords"].empty:
                     coords_df = data["coords"].copy()
-                    
-                    colors = ["#007bff"] * len(coords_df) # 預設藍色 (轉乘/途經點)
-                    sizes = [40] * len(coords_df)         # 預設較小
+                    colors = ["#007bff"] * len(coords_df) 
+                    sizes = [40] * len(coords_df)         
                     
                     if len(coords_df) > 0:
-                        colors[0] = "#28a745" # 🟢 起點：綠色
+                        colors[0] = "#28a745" 
                         sizes[0] = 150
                     if len(coords_df) > 1:
-                        colors[-1] = "#dc3545" # 🔴 終點：紅色
+                        colors[-1] = "#dc3545" 
                         sizes[-1] = 150
                         
                     coords_df["color"] = colors
@@ -205,7 +212,8 @@ def render_navigation(db, user_email):
                             st.session_state.pop("dyn_start", None)
                             st.session_state.pop("dyn_end", None)
                             
-                            st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
+                            # 🌟 UI 優化：換成輕量化 Toast 推播
+                            st.toast("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。", icon="✅")
                             time.sleep(1.5)
                             st.rerun()
                         else:
