@@ -37,23 +37,35 @@ def render_navigation(db, user_email):
     else:
         st.subheader("📍 智能路線與預約搭乘")
 
-        start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
-        end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
+        # 🌟 UI 優化：將出發地與目的地使用 Columns 並排顯示
+        loc_col1, loc_col2 = st.columns(2)
+        with loc_col1:
+            start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
+        with loc_col2:
+            end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
         
+        # 將單選按鈕改成橫向排列，節省空間
         mode = st.radio("選擇查詢模式", [
             "⚡ 即時查詢 (馬上出發)", 
             "🕒 特定查詢 (同時設定出發與到達時間)"
-        ])
+        ], horizontal=True)
 
         selected_date = None
         selected_start_time = None
         selected_end_time = None
 
         if mode == "🕒 特定查詢 (同時設定出發與到達時間)":
-            st.markdown("⚙️ **請設定您的行程時間範圍 (系統將為您尋找最貼切的班次)**")
-            selected_date = st.date_input("選擇日期")
-            selected_start_time = st.time_input("🕒 預計出發時間")
-            selected_end_time = st.time_input("🏁 希望抵達時間")
+            # 🌟 UI 優化：將時間設定包裝成一個帶邊框的控制面板卡片
+            with st.container(border=True):
+                st.markdown("⚙️ **行程時間範圍設定**")
+                selected_date = st.date_input("📅 選擇日期")
+                
+                # 將出發與抵達時間並排
+                time_col1, time_col2 = st.columns(2)
+                with time_col1:
+                    selected_start_time = st.time_input("🕒 預計出發時間")
+                with time_col2:
+                    selected_end_time = st.time_input("🏁 希望抵達時間")
 
         if st.button("🚀 開始路線查詢", type="primary", use_container_width=True):
             if not start_loc or not end_loc:
@@ -69,7 +81,7 @@ def render_navigation(db, user_email):
                         
                         st.session_state.search_title = f"{start_loc} ➔ {end_loc} (需在 {selected_date} {selected_end_time.strftime('%H:%M')} 前抵達)"
                         st.session_state.user_start_time = selected_start_time 
-                        st.session_state.user_end_time = selected_end_time # 存下使用者的截止時間
+                        st.session_state.user_end_time = selected_end_time 
                     else:
                         route_data = api_services.get_google_transit_route(query_start, query_end, mode="live")
                         st.session_state.search_title = f"{start_loc} ➔ {end_loc} (即時出發)"
@@ -98,7 +110,6 @@ def render_navigation(db, user_email):
                             api_dep_time = datetime.datetime.strptime(api_dep_time_str, "%H:%M").time()
                             api_arr_time = datetime.datetime.strptime(api_arr_time_str, "%H:%M").time()
                             
-                            # 🌟 核心防呆機制：判斷是否會遲到！
                             if api_arr_time > user_end_time:
                                 st.error(f"🔴 **無法準時抵達**：目前時間已趕不上能在 {user_end_time.strftime('%H:%M')} 前抵達的車次！系統已自動為您尋找最快的下一班車（將於 {api_arr_time_str} 抵達）。")
                             elif api_dep_time < user_start_time:
@@ -182,5 +193,3 @@ def render_navigation(db, user_email):
                             st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
                             time.sleep(1.5)
                             st.rerun()
-                        else:
-                            st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
