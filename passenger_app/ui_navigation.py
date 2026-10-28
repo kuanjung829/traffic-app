@@ -3,6 +3,7 @@ import time
 import datetime
 from database import save_db
 import api_services 
+import streamlit.components.v1 as components
 
 def render_navigation(db, user_email):
     user_data = db["users"][user_email]
@@ -14,33 +15,88 @@ def render_navigation(db, user_email):
 
     pending_orders = [o for o in user_data["history"] if o.get("status") == "pending"]
 
-    # 🌟 UI 優化：使用 Tabs 分頁，打造原生 APP 的切換體驗
+    # 🌟 UI 優化：使用 Tabs 分頁
     tab1, tab2 = st.tabs(["🗺️ 路線規劃與搭乘", "📜 我的歷史訂單"])
 
     # ==========================================
-    # 第一頁籤：路線查詢與預約 (保留完整的防呆邏輯)
+    # 第一頁籤：路線查詢與預約
     # ==========================================
     with tab1:
         if pending_orders:
             st.info("💡 溫馨提醒：您必須完成當前行程或取消預約，才能進行新的路線查詢。")
-            st.warning(f"⚠️ 您目前有 {len(pending_orders)} 段尚未搭乘的轉乘訂單！請依序上車刷臉，或取消剩餘預約。")
             
             next_order = pending_orders[0]
-            st.write(f"**即將搭乘**: {next_order['route']}")
-            st.write(f"**本段凍結票價**: NT$ {next_order['fare']}")
+            dep_dt_str = next_order.get("dep_datetime")
+            is_expired = False
             
-            total_pending_fare = sum(o["fare"] for o in pending_orders)
+            # 🌟 核心防呆：倒數計時與違約扣款機制
+            if dep_dt_str:
+                try:
+                    dep_dt = datetime.datetime.strptime(dep_dt_str, "%Y-%m-%d %H:%M:%S")
+                    # 設定 1 分鐘停靠緩衝時間
+                    deadline_dt = dep_dt + datetime.timedelta(minutes=1)
+                    now = datetime.datetime.now()
+                    
+                    if now > deadline_dt:
+                        is_expired = True
+                        # 逾時未上車，執行違約扣款
+                        user_data["frozen_balance"] -= next_order["fare"]
+                        next_order["status"] = "missed"
+                        save_db(db)
+                        
+                        st.error(f"🚨 **違約扣款通知**\n\n您未於發車與停靠緩衝時間內上車 ({next_order['route']})，系統已自動沒收並扣除違約車資 NT$ {next_order['fare']}。")
+                        if st.button("🔄 刷新頁面", use_container_width=True):
+                            st.rerun()
+                    else:
+                        # 計算給 JS 使用的時間戳記
+                        deadline_ts = int(deadline_dt.timestamp() * 1000)
+                        
+                        countdown_html = f"""
+                        <div style="background-color:#fff3cd; border:1px solid #ffeeba; color:#856404; padding:15px; border-radius:10px; text-align:center; font-family:sans-serif; margin-bottom:10px;">
+                            <div style="font-size:16px; margin-bottom:5px;">🚌 <b>{next_order['route']}</b></div>
+                            <div style="font-size:14px; color:#666;">預計發車：{dep_dt.strftime('%H:%M')} (含 1 分鐘靠站寬限)</div>
+                            <h2 style="margin:10px 0 5px 0; color:#dc3545; font-weight:bold;" id="timer">計算中...</h2>
+                        </div>
+                        <script>
+                            var countDownDate = {deadline_ts};
+                            var x = setInterval(function() {{
+                                var now = new Date().getTime();
+                                var distance = countDownDate - now;
+                                if (distance < 0) {{
+                                    clearInterval(x);
+                                    document.getElementById("timer").innerHTML = "時間已到，車輛已駛離！";
+                                }} else {{
+                                    var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                    var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                    var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                                    
+                                    var timeStr = "";
+                                    if(hours > 0) timeStr += hours + "時 ";
+                                    timeStr += minutes + "分 " + seconds + "秒";
+                                    document.getElementById("timer").innerHTML = "⏳ 剩餘 " + timeStr;
+                                }}
+                            }}, 1000);
+                        </script>
+                        """
+                        components.html(countdown_html, height=140)
+                except Exception as e:
+                    pass
+            
+            if not is_expired:
+                # 尚未逾時，顯示原本的取消按鈕
+                st.write(f"**本段凍結票價**: NT$ {next_order['fare']}")
+                total_pending_fare = sum(o["fare"] for o in pending_orders)
 
-            if st.button("❌ 取消剩餘所有預約 (退回未扣款項)", use_container_width=True):
-                for o in user_data["history"]:
-                    if o.get("status") == "pending":
-                        user_data["balance"] += o["fare"]
-                        user_data["frozen_balance"] -= o["fare"]
-                        o["status"] = "canceled"
-                save_db(db)
-                st.toast(f"✅ 已成功取消後續行程，共解凍退回 NT$ {total_pending_fare}！", icon="💸")
-                time.sleep(1.5)
-                st.rerun()
+                if st.button("❌ 取消剩餘所有預約 (退回未扣款項)", use_container_width=True):
+                    for o in user_data["history"]:
+                        if o.get("status") == "pending":
+                            user_data["balance"] += o["fare"]
+                            user_data["frozen_balance"] -= o["fare"]
+                            o["status"] = "canceled"
+                    save_db(db)
+                    st.toast(f"✅ 已成功取消後續行程，共解凍退回 NT$ {total_pending_fare}！", icon="💸")
+                    time.sleep(1.5)
+                    st.rerun()
         else:
             loc_col1, loc_col2 = st.columns(2)
             with loc_col1:
@@ -184,6 +240,11 @@ def render_navigation(db, user_email):
 
                                 transit_legs = [leg for leg in data["transit_legs"] if leg["type"] == "TRANSIT"]
                                 num_legs = len(transit_legs)
+                                
+                                if mode != "⚡ 即時查詢 (馬上出發)" and selected_date:
+                                    journey_date_str = selected_date.strftime("%Y-%m-%d")
+                                else:
+                                    journey_date_str = time.strftime("%Y-%m-%d")
 
                                 if num_legs > 0:
                                     fare_per_leg = actual_fare // num_legs
@@ -191,10 +252,13 @@ def render_navigation(db, user_email):
                                     
                                     for i, leg in enumerate(transit_legs):
                                         leg_fare = fare_per_leg + (remainder if i == 0 else 0)
+                                        dep_datetime_str = f"{journey_date_str} {leg['dep_time']}:00"
+                                        
                                         new_order = {
                                             "route": f"【{leg['bus_name']}】 {leg['board']} ➔ {leg['alight']}",
                                             "fare": leg_fare,
                                             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                            "dep_datetime": dep_datetime_str,
                                             "status": "pending"
                                         }
                                         user_data["history"].append(new_order)
@@ -203,6 +267,7 @@ def render_navigation(db, user_email):
                                         "route": st.session_state.search_title,
                                         "fare": actual_fare,
                                         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        "dep_datetime": time.strftime("%Y-%m-%d %H:%M:%S"),
                                         "status": "pending"
                                     }
                                     user_data["history"].append(new_order)
@@ -221,7 +286,7 @@ def render_navigation(db, user_email):
                                 st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
 
     # ==========================================
-    # 第二頁籤：歷史訂單紀錄 (找回你辛苦做的功能！)
+    # 第二頁籤：歷史訂單紀錄
     # ==========================================
     with tab2:
         st.markdown("### 📜 歷史訂單紀錄")
@@ -229,7 +294,6 @@ def render_navigation(db, user_email):
         if not user_data.get("history"):
             st.info("尚無任何訂單紀錄，趕快去預約一趟旅程吧！")
         else:
-            # 使用 reversed 讓最新的訂單排在最上面
             for order in reversed(user_data["history"]):
                 with st.container(border=True):
                     col1, col2 = st.columns([3, 1])
@@ -239,10 +303,11 @@ def render_navigation(db, user_email):
                     with col2:
                         st.markdown(f"<div style='text-align:right; font-size:16px; font-weight:bold;'>NT$ {order['fare']}</div>", unsafe_allow_html=True)
                         
-                        # 依照訂單狀態顯示不同顏色的標籤
                         if order.get("status") == "pending":
                             st.markdown("<div style='text-align:right; color:#ffc107; font-size:14px; font-weight:bold;'>⏳ 待搭乘</div>", unsafe_allow_html=True)
                         elif order.get("status") == "completed":
                             st.markdown("<div style='text-align:right; color:#28a745; font-size:14px; font-weight:bold;'>✅ 已完成扣款</div>", unsafe_allow_html=True)
                         elif order.get("status") == "canceled":
-                            st.markdown("<div style='text-align:right; color:#dc3545; font-size:14px; font-weight:bold;'>❌ 已取消</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='text-align:right; color:#6c757d; font-size:14px; font-weight:bold;'>❌ 已取消</div>", unsafe_allow_html=True)
+                        elif order.get("status") == "missed":
+                            st.markdown("<div style='text-align:right; color:#dc3545; font-size:14px; font-weight:bold;'>🚫 違約未搭乘</div>", unsafe_allow_html=True)
