@@ -21,7 +21,6 @@ hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;} /* 隱藏右上角漢堡選單 */
             footer {visibility: hidden;}    /* 隱藏底部 Made with Streamlit */
-            header {visibility: hidden;}    /* 隱藏頂部裝飾線與預設 Header */
             
             /* 微調主畫面的頂部間距，讓它更像手機 App 的版面 */
             .block-container {
