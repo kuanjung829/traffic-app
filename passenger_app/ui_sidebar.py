@@ -2,32 +2,46 @@ import streamlit as st
 import os
 import time
 import random
+import re
 from PIL import Image
 from ui_face import face_dialog
 from database import save_db
 
-# 💳 綁定信用卡彈出視窗
+# 💳 綁定信用卡彈出視窗 (🌟 加入嚴格防呆驗證)
 @st.dialog("💳 綁定信用卡")
 def credit_card_dialog(db, user_email):
     st.write("綁定信用卡後即可啟用線上儲值功能")
     
-    card_num = st.text_input("信用卡卡號 (16碼數字)", max_chars=16, placeholder="例如：4311952222222222")
+    card_num = st.text_input("信用卡卡號 (16碼純數字)", max_chars=16, placeholder="例如：4311952222222222")
     valid_thru = st.text_input("有效期限 (MM/YY)", max_chars=5, placeholder="例如：12/28")
     cvv = st.text_input("安全碼 (3碼)", type="password", max_chars=3)
     
     if st.button("確認綁定", use_container_width=True, type="primary"):
+        current_year = int(time.strftime("%y")) # 取得目前年份後兩碼 (例如 26)
+        
         if not card_num or not valid_thru or not cvv:
             st.error("❌ 請完整填寫信用卡資訊")
-        elif len(card_num) < 16:
-            st.error("❌ 信用卡號格式錯誤 (需為 16 碼數字)")
-        elif len(cvv) < 3:
-            st.error("❌ 安全碼格式錯誤 (需 3 碼)")
+        elif len(card_num) != 16 or not card_num.isdigit():
+            st.error("❌ 信用卡號格式錯誤 (需為 16 碼純數字)")
+        elif len(cvv) != 3 or not cvv.isdigit():
+            st.error("❌ 安全碼格式錯誤 (需為 3 碼純數字)")
+        elif not re.match(r"^(0[1-9]|1[0-2])\/([0-9]{2})$", valid_thru):
+            st.error("❌ 有效期限格式錯誤 (需為 MM/YY，且月份為 01-12)")
         else:
-            db["users"][user_email]["credit_card"] = card_num[-4:]
-            save_db(db)
-            st.success("✅ 信用卡綁定成功！您現在可以使用儲值功能了。")
-            time.sleep(1.5)
-            st.rerun()
+            # 驗證年份是否過期或不合理
+            month, year = valid_thru.split('/')
+            year_int = int(year)
+            
+            if year_int < current_year:
+                st.error(f"❌ 此信用卡已過期！(目前年份為 20{current_year})")
+            elif year_int > current_year + 15:
+                st.error("❌ 年份異常，請確認輸入是否正確！")
+            else:
+                db["users"][user_email]["credit_card"] = card_num[-4:]
+                save_db(db)
+                st.toast("✅ 信用卡綁定成功！您現在可以使用儲值功能了。", icon="💳")
+                time.sleep(1.5)
+                st.rerun()
 
 # 💳 儲值系統彈出視窗
 @st.dialog("💳 虛擬錢包儲值")
@@ -37,7 +51,7 @@ def recharge_dialog(db, user_email):
     if st.button("確認付款並儲值", use_container_width=True, type="primary"):
         db["users"][user_email]["balance"] += amount
         save_db(db)
-        st.success(f"✅ 成功儲值 NT$ {amount}！")
+        st.toast(f"✅ 成功儲值 NT$ {amount}！", icon="💰")
         time.sleep(1.5)
         st.rerun()
 
@@ -71,7 +85,7 @@ def phone_dialog(db, user_email):
                 del st.session_state.sms_code
                 del st.session_state.temp_phone
                 
-                st.success("✅ 綁定成功！已發放 NT$ 50 乘車金。")
+                st.toast("✅ 綁定成功！已發放 NT$ 50 乘車金。", icon="📱")
                 time.sleep(1.5)
                 st.rerun()
             else:
@@ -112,8 +126,20 @@ def render_sidebar(db, user_email, controller):
     
     if user_data.get("credit_card"):
         st.sidebar.success(f"✅ 已綁定信用卡 (尾數 {user_data['credit_card']})")
-        if st.sidebar.button("💰 前往儲值", use_container_width=True):
-            recharge_dialog(db, user_email)
+        
+        # 🌟 UI 優化：將儲值與解綁按鈕並排
+        btn_col1, btn_col2 = st.sidebar.columns(2)
+        with btn_col1:
+            if st.button("💰 前往儲值", use_container_width=True):
+                recharge_dialog(db, user_email)
+        with btn_col2:
+            if st.button("🗑️ 解綁卡片", use_container_width=True):
+                # 刪除資料庫中的信用卡紀錄
+                user_data.pop("credit_card", None)
+                save_db(db)
+                st.toast("✅ 信用卡已成功解除綁定", icon="🗑️")
+                time.sleep(1)
+                st.rerun()
     else:
         st.sidebar.warning("⚠️ 尚未綁定信用卡")
         if st.sidebar.button("👉 前往綁定信用卡", use_container_width=True):
