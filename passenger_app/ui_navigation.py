@@ -37,14 +37,14 @@ def render_navigation(db, user_email):
     else:
         st.subheader("📍 智能路線與預約搭乘")
 
-        # 🌟 UI 優化：將出發地與目的地使用 Columns 並排顯示
+        # 📱 表單並排收納：大幅節省畫面垂直空間
         loc_col1, loc_col2 = st.columns(2)
         with loc_col1:
             start_loc = st.text_input("📍 出發地", placeholder="例如：磐石中學")
         with loc_col2:
             end_loc = st.text_input("📍 目的地", placeholder="例如：新竹火車站")
         
-        # 將單選按鈕改成橫向排列，節省空間
+        # 將單選按鈕改成橫向排列
         mode = st.radio("選擇查詢模式", [
             "⚡ 即時查詢 (馬上出發)", 
             "🕒 特定查詢 (同時設定出發與到達時間)"
@@ -55,12 +55,10 @@ def render_navigation(db, user_email):
         selected_end_time = None
 
         if mode == "🕒 特定查詢 (同時設定出發與到達時間)":
-            # 🌟 UI 優化：將時間設定包裝成一個帶邊框的控制面板卡片
             with st.container(border=True):
                 st.markdown("⚙️ **行程時間範圍設定**")
                 selected_date = st.date_input("📅 選擇日期")
                 
-                # 將出發與抵達時間並排
                 time_col1, time_col2 = st.columns(2)
                 with time_col1:
                     selected_start_time = st.time_input("🕒 預計出發時間")
@@ -137,8 +135,25 @@ def render_navigation(db, user_email):
                 
                 st.write("") 
 
+                # 🗺️ 地圖優化：加工座標資料，加上顏色與大小屬性
                 if "coords" in data and not data["coords"].empty:
-                    st.map(data["coords"])
+                    coords_df = data["coords"].copy()
+                    
+                    colors = ["#007bff"] * len(coords_df) # 預設藍色 (轉乘/途經點)
+                    sizes = [40] * len(coords_df)         # 預設較小
+                    
+                    if len(coords_df) > 0:
+                        colors[0] = "#28a745" # 🟢 起點：綠色
+                        sizes[0] = 150
+                    if len(coords_df) > 1:
+                        colors[-1] = "#dc3545" # 🔴 終點：紅色
+                        sizes[-1] = 150
+                        
+                    coords_df["color"] = colors
+                    coords_df["size"] = sizes
+                    
+                    st.caption("🗺️ **路線導覽** ( 🟢起點 ➔ 🔵轉乘/途經 ➔ 🔴終點 )")
+                    st.map(coords_df, color="color", size="size")
                     st.write("")
 
                 base_fare = data.get("fare", 15) 
@@ -193,3 +208,5 @@ def render_navigation(db, user_email):
                             st.success("🎉 分段預約成功！各段車資已凍結，請依序上車刷臉扣款。")
                             time.sleep(1.5)
                             st.rerun()
+                        else:
+                            st.error(f"❌ 可用餘額不足！您的餘額為 NT$ {user_data['balance']}，需 NT$ {actual_fare}。請先儲值。")
