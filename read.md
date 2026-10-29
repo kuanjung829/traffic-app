@@ -1,112 +1,89 @@
-# 🚌 AI 智慧公車無感支付系統 (Smart Bus Face-Pay System)
+# 🚌 AI 智慧公車無感支付系統 (AI Smart Bus Seamless Payment)
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-Framework-FF4B4B.svg)
-![OpenCV](https://img.shields.io/badge/OpenCV-Computer_Vision-5C3EE8.svg)
-![Architecture](https://img.shields.io/badge/Architecture-Cloud--Edge_Split-brightgreen.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
+![DeepFace](https://img.shields.io/badge/AI_DeepFace-000000?style=for-the-badge)
+![Google Maps API](https://img.shields.io/badge/Google_Maps_API-4285F4?style=for-the-badge&logo=googlemaps&logoColor=white)
 
-本專案為一個基於 Python 與 Streamlit 開發的「公車人臉辨識扣款模擬系統」。透過整合 OpenCV 電腦視覺技術與雙資料庫（雲端/邊緣）架構，旨在解決傳統電子票證需實體刷卡、容易遺失或忘記帶卡的痛點，打造「上車即走、無感支付」的未來智慧交通體驗。
-
----
-
-## 💡 開發動機與背景 (Background & Motivation)
-
-在智慧城市推動下，大眾運輸工具的支付方式不斷革新。然而，現行的票卡或 QR Code 支付仍需要實體媒介與手動操作，在尖峰時段容易造成車門壅塞。
-本專案發想自「無感支付」概念，以 AI 人臉辨識作為身分載體，探索將生物辨識技術導入日常交通系統的適配性與潛力。同時，為了克服公車行進間網路不穩定的真實場景，特別設計了 **Cloud-Edge 邊緣運算分離架構**。
+這是一款結合**深度學習人臉辨識**、**動態路線規劃**與**金融級虛擬錢包**的次世代大眾運輸解決方案。本系統將傳統的「投幣/刷卡」乘車體驗，升級為「先預約凍結、上車刷臉即走」的無感支付模式，並配備完整的商業防呆邏輯與司機端雙資料庫 POS 機。
 
 ---
 
-## ✨ 核心架構 (Core Architecture)
+## ✨ 核心特色功能
 
-系統完全模擬真實世界的公車運作環境，採用「雙資料庫」非同步設計，降低對雲端即時連線的依賴：
+### 👤 生物辨識與無感支付 (Biometric & Seamless Payment)
+* **AI 臉部建檔與追蹤**：使用 OpenCV (Haarcascade) 進行即時臉部追蹤與視覺裁切。
+* **高精度防盜刷比對**：導入 DeepFace 深度神經網路，進行嚴格的特徵值比對，確保為本人搭乘。
+* **金融級錢包系統**：具備嚴格正則表達式 (Regex) 的信用卡綁定與解綁功能、模擬簡訊驗證，以及乘車金儲值系統。
 
-*   ☁️ **雲端資料庫 (`users_db.json`)**：
-    *   模擬集中式伺服器，負責儲存乘客個資、虛擬錢包餘額、交易明細。
-    *   管理並儲存高解析度的 AI 生物特徵大頭貼 (`face_photos`)。
-*   🚌 **邊緣驗票機資料庫 (`local_bus_transactions.json`)**：
-    *   模擬公車車機 (Edge Device) 的本端儲存。
-    *   專門紀錄單機累計營收、上車存證照片 (`bus_scans`)，以及即時扣款日誌。
+### 🗺️ 智慧路線規劃與防呆預約 (Smart Routing & Booking)
+* **雙 API 智能導航**：整合 Google Maps Directions API 與台灣 TDX 運輸資料流通服務，提供精準轉乘路線與即時到站狀態。
+* **逆向時間推算**：支援設定「希望抵達時間」，系統會自動反推最晚出發時間，並進行時間衝突攔截。
+* **商業級防佔位機制**：預約成功後進行**車資預先凍結**，並啟動高質感**動態倒數計時器**。公車發車超過「1 分鐘靠站寬限期」未上車刷臉者，系統將自動沒收違約金。
 
----
+### 🚌 雙資料庫驗票機系統 (Dual-DB POS Scanner)
+* **高對比數位電子看板**：司機端配備高鐵/商用級別的黑綠底數位 POS 看板，提供視覺震撼的扣款回饋。
+* **雲端與本地端雙軌架構**：模擬真實公車離線營運情境，具備 local_bus_transactions.json，精準紀錄單機今日累計營收與交易日誌。
 
-## 🚀 系統特色與功能 (Key Features)
-
-### 👤 乘客端 (Passenger Web App)
-*   **AI 智能生物建檔**：串接 OpenCV Haar Cascade 模型，自動偵測人臉輪廓並「智能裁切 (Smart Crop)」出乾淨的五官特徵，過濾多餘背景，建立標準化大頭貼資料庫。
-*   **虛擬錢包與雙重驗證**：實作模擬簡訊 (OTP) 手機綁定與信用卡儲值功能，並具備學生票自動辨識與票價打折邏輯。
-*   **動態乘車紀錄與退款防呆**：提供歷史搭乘明細查詢，並內建「3 分鐘內發車前防誤扣退款」的安全機制。
-*   **Session 狀態持久化**：實作「保持登入」功能，確保跨頁面與重整時的使用者體驗。
-
-### 💳 實體驗票機端 (Bus Scanner Edge)
-*   **動態綠框視覺追蹤**：乘客上車時，系統會即時進行臉部捕捉，並在畫面上渲染追蹤綠框 (Face Tracked)，提供即時科技視覺回饋。
-*   **智能裁切存證**：系統不會儲存包含雜亂背景的全螢幕畫面，而是精準裁切綠框內的臉部特徵作為交易存證。
-*   **防重複扣款演算法 (Anti-Double Charge)**：利用 Session State 與影像位元組指紋 (Byte size) 進行比對，成功解決 Web 應用程式常見的「重整無限迴圈扣款」漏洞。
-*   **無臉拒絕交易機制 (Face Gating)**：嚴格的閘道控制，若 AI 未偵測到完整人臉特徵，驗票機將自動攔截並拒絕扣款，防止誤觸。
+### 📱 原生 APP 級 UI/UX (App-level UI)
+* 全面隱藏 Streamlit 預設框架痕跡，打造沉浸式手機 App 體驗。
+* 導入 st.toast 輕量化推播提示、並排響應式表單、電子車票卡片設計。
+* 客製化地圖標記 ( 🟢起點 ➔ 🔵轉乘/途經 ➔ 🔴終點 )，路線導覽一目了然。
 
 ---
 
-## 📁 專案目錄結構 (Directory Structure)
+## 🛠️ 技術架構 (Tech Stack)
 
-```text
-traffic-app/
-├── passenger_app/                  # 主程式邏輯與 UI 介面區
-│   ├── app.py                      # 系統主入口 (路由與初始化)
-│   ├── database.py                 # 資料庫讀寫模組
-│   ├── ui_auth.py                  # 登入與註冊介面
-│   ├── ui_face.py                  # 乘客端 AI 生物建檔與智能裁切
-│   ├── ui_scanner.py               # 公車驗票機端核心邏輯與視覺追蹤
-│   └── ui_sidebar.py               # 側邊欄與會員中心控制
-├── shared_data/                    # 雙資料庫與影像儲存區
-│   ├── users_db.json               # ☁️ 雲端使用者資料庫
-│   ├── local_bus_transactions.json # 🚌 邊緣車機交易日誌
-│   ├── face_photos/                # 雲端乘客註冊大頭貼
-│   └── bus_scans/                  # 車機端上車存證照片
-└── requirements.txt                # 專案套件依賴清單
-```
+* **前端介面**：[Streamlit](https://streamlit.io/) + Custom HTML/CSS/JS (Components)
+* **後端邏輯**：Python 3.11
+* **AI 視覺**：OpenCV (haarcascade_frontalface_default.xml), DeepFace
+* **API 串接**：Google Maps API (Transit Mode), MOTC TDX API
+* **資料庫**：JSON (模擬關聯式資料庫與本地端資料同步)
+* **狀態管理**：streamlit_cookies_controller (幽靈帳號防禦機制), st.session_state
 
 ---
 
-## 🛠️ 技術堆疊 (Tech Stack)
+## 🚀 安裝與執行指引
 
-*   **Frontend & Web Framework**: Streamlit (快速建構資料應用 UI、Session 狀態管理)
-*   **Computer Vision**: OpenCV (Haar Cascade 臉部特徵定位、綠框渲染、即時影像處理)
-*   **Image Processing**: Pillow (PIL), NumPy (矩陣運算與智慧裁切)
-*   **Database Engine**: JSON (實作輕量級 NoSQL 文件資料庫存取)
+### 1. 複製專案與安裝依賴套件
 
----
-
-## 💻 快速啟動指南 (Quick Start)
-
-1. **複製專案到本機**
-```bash
-git clone [https://github.com/kuanjung829/traffic-app.git](https://github.com/kuanjung829/traffic-app.git)
-cd traffic-app/passenger_app
-```
-
-2. **安裝所需依賴套件**
-```bash
+git clone [https://github.com/你的帳號/你的專案庫名稱.git](https://github.com/你的帳號/你的專案庫名稱.git)
+cd 你的專案庫名稱
 pip install -r requirements.txt
-```
 
-3. **啟動系統**
-```bash
+
+### 2. 環境變數設定
+請在專案根目錄或 Streamlit Secrets 中設定相關 API 金鑰：
+* Google Maps API Key
+* TDX Client ID & Client Secret
+* (若佈署於雲端) 確保系統時區設定為 Asia/Taipei
+
+### 3. 啟動應用程式
+請進入主程式所在目錄，執行以下指令：
+
 cd passenger_app
-python -m streamlit run app.py --server.port 8501
-```
-*(啟動後系統將自動於背景下載所需的 OpenCV 模型，並開啟瀏覽器進入系統)*
+streamlit run app.py
+
 
 ---
 
-## 📓 開發者筆記：技術克服 (Developer Notes)
+## 📂 專案目錄結構
 
-本系統在開發過程中，為解決複雜的 C++ 視覺引擎 (如 `dlib`, `face_recognition`, `MediaPipe`) 與 Streamlit 網頁單執行緒重繪機制衝突導致的崩潰問題，特別實作了**「系統解耦 (Decoupling)」**架構。
-
-我們將容易報錯的底層 AI 比對引擎從前端資料流中獨立出來，改為「先由 OpenCV 輕量模型進行視覺追蹤與智能裁切，確保交易存檔穩定，後續再交由後台進行身分比對」的非同步概念架構。這大幅提升了系統在 Windows 環境下的穩定度與執行流暢性，展現了務實的軟體工程妥協與優化能力。
-
----
-
-## 🎯 未來展望 (Future Roadmap)
-
-*   [ ] **深度學習整合**：從 Haar Cascade 升級至更精確的 CNN/FaceNet 模型，實作真正的 1:N 人臉相似度比對扣款。
-*   [ ] **資料庫雲端化**：將本地 JSON 資料庫遷移至 Firebase 或 MongoDB，實作跨裝置真正的雲端同步。
-*   [ ] **即時路況 API 串接**：整合 TDX (運輸資料流通服務) API，於乘客端提供即時公車動態與到站時間預估。
+📦 project-root
+ ┣ 📂 passenger_app       # 主應用程式資料夾
+ ┃ ┣ 📜 app.py            # 系統進入點 (包含全域 CSS 優化與時區設定)
+ ┃ ┣ 📜 ui_auth.py        # 登入與註冊介面
+ ┃ ┣ 📜 ui_navigation.py  # 智慧路線查詢、電子車票、倒數防呆機制
+ ┃ ┣ 📜 ui_sidebar.py     # 會員中心、信用卡綁定、錢包儲值
+ ┃ ┣ 📜 ui_scanner.py     # 司機端驗票機 (DeepFace 驗證與數位 POS 看板)
+ ┃ ┣ 📜 ui_face.py        # 人臉建檔與特徵儲存
+ ┃ ┣ 📜 api_services.py   # Google Maps 與 TDX API 串接邏輯
+ ┃ ┗ 📜 database.py       # 雲端資料庫讀寫模組
+ ┣ 📂 shared_data         # 共享資料庫與圖片儲存區
+ ┃ ┣ 📂 face_photos       # 乘客註冊之人臉特徵圖片
+ ┃ ┣ 📂 bus_scans         # 乘車時實際刷臉之存證照片
+ ┃ ┣ 📜 users_db.json     # 全域雲端會員資料庫
+ ┃ ┗ 📜 local_bus_transactions.json # 驗票機本地端交易日誌與營收
+ ┣ 📜 requirements.txt    # Python 依賴套件清單
+ ┗ 📜 README.md           # 專案說明文件
