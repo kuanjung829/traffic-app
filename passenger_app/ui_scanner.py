@@ -55,17 +55,11 @@ def render_scanner(cloud_db):
     with col_info:
         st.subheader("💳 交易狀態看板")
         status_placeholder = st.empty()
-        
         st.divider()
         revenue_placeholder = st.empty()
 
-    # 預設待機畫面 (消除縮排地雷)
-    WAITING_HTML = (
-        "<div style='background-color:#1a1a1a; border: 2px dashed #555; padding: 50px 20px; border-radius: 12px; text-align:center;'>"
-        "<h3 style='color:#777; font-family: \"Courier New\", Courier, monospace; letter-spacing: 3px; margin:0;'>WAITING...</h3>"
-        "<div style='color:#555; margin-top:10px; font-size:15px;'>請乘客正對鏡頭進行刷臉</div>"
-        "</div>"
-    )
+    # 🌟 防呆重點 1：將 HTML 寫成毫無空行的單行字串
+    WAITING_HTML = "<div style='background-color:#1a1a1a; border: 2px dashed #555; padding: 50px 20px; border-radius: 12px; text-align:center;'><h3 style='color:#777; font-family: \"Courier New\", Courier, monospace; letter-spacing: 3px; margin:0;'>WAITING...</h3><div style='color:#555; margin-top:10px; font-size:15px;'>請乘客正對鏡頭進行刷臉</div></div>"
 
     if "last_processed_pic_size" not in st.session_state:
         st.session_state.last_processed_pic_size = None
@@ -112,13 +106,7 @@ def render_scanner(cloud_db):
 
         if st.session_state.last_processed_pic_size != current_pic_size:
             if not face_detected:
-                error_html = (
-                    "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'>"
-                    "<h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕驗證</h2>"
-                    "<hr style='border-color:#444; margin: 15px 0;'>"
-                    "<p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>未偵測到人臉，請直視鏡頭</p>"
-                    "</div>"
-                )
+                error_html = "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'><h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕驗證</h2><hr style='border-color:#444; margin: 15px 0;'><p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>未偵測到人臉，請直視鏡頭</p></div>"
                 st.session_state.last_processed_pic_size = current_pic_size
                 st.session_state.last_status_msg = error_html
                 status_placeholder.markdown(error_html, unsafe_allow_html=True)
@@ -127,13 +115,7 @@ def render_scanner(cloud_db):
                 reference_pic_path = f"../shared_data/face_photos/{simulated_user}.png"
                 
                 if not os.path.exists(reference_pic_path):
-                    error_html = (
-                        "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'>"
-                        "<h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 系統異常</h2>"
-                        "<hr style='border-color:#444; margin: 15px 0;'>"
-                        f"<p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>找不到 {user_info.get('name', '該乘客')} 的基準照片</p>"
-                        "</div>"
-                    )
+                    error_html = f"<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'><h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 系統異常</h2><hr style='border-color:#444; margin: 15px 0;'><p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>找不到 {user_info.get('name', '該乘客')} 的基準照片</p></div>"
                     st.session_state.last_processed_pic_size = current_pic_size
                     st.session_state.last_status_msg = error_html
                     status_placeholder.markdown(error_html, unsafe_allow_html=True)
@@ -142,24 +124,14 @@ def render_scanner(cloud_db):
                     
                     with st.spinner("🤖 正在進行 DeepFace 深度人臉特徵比對..."):
                         try:
-                            result = DeepFace.verify(
-                                img1_path = img_array, 
-                                img2_path = reference_pic_path,
-                                enforce_detection = False
-                            )
+                            result = DeepFace.verify(img1_path=img_array, img2_path=reference_pic_path, enforce_detection=False)
                             is_match = result.get("verified", False)
                         except Exception as e:
                             st.error(f"AI 比對過程發生異常: {e}")
                             is_match = False
 
                     if not is_match:
-                        error_html = (
-                            "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'>"
-                            "<h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕登車</h2>"
-                            "<hr style='border-color:#444; margin: 15px 0;'>"
-                            "<p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>非本人！防盜刷機制已啟動</p>"
-                            "</div>"
-                        )
+                        error_html = "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'><h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕登車</h2><hr style='border-color:#444; margin: 15px 0;'><p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>非本人！防盜刷機制已啟動</p></div>"
                         st.session_state.last_processed_pic_size = current_pic_size
                         st.session_state.last_status_msg = error_html
                         status_placeholder.markdown(error_html, unsafe_allow_html=True)
@@ -170,13 +142,7 @@ def render_scanner(cloud_db):
                         pending_orders = [o for o in user_info["history"] if o.get("status") == "pending"]
                         
                         if not pending_orders:
-                            error_html = (
-                                "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'>"
-                                "<h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕登車</h2>"
-                                "<hr style='border-color:#444; margin: 15px 0;'>"
-                                "<p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>找不到預約訂單，請先下單</p>"
-                                "</div>"
-                            )
+                            error_html = "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'><h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 拒絕登車</h2><hr style='border-color:#444; margin: 15px 0;'><p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>找不到預約訂單，請先下單</p></div>"
                             st.session_state.last_processed_pic_size = current_pic_size
                             st.session_state.last_status_msg = error_html
                             status_placeholder.markdown(error_html, unsafe_allow_html=True)
@@ -209,34 +175,14 @@ def render_scanner(cloud_db):
                                 
                                 st.toast("嗶！刷卡成功", icon="✅")
                                 
-                                # 🌟 高對比數位 POS 看板 (消除縮排地雷)
-                                success_html = (
-                                    "<div style='background-color:#0a1910; border: 3px solid #28a745; padding: 20px; border-radius: 12px; box-shadow: inset 0 0 25px rgba(40, 167, 69, 0.2);'>"
-                                    "<h2 style='color:#39ff14; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>🟢 驗證與扣款成功</h2>"
-                                    "<hr style='border-color:#194025; margin: 15px 0;'>"
-                                    f"<div style='color:#81c784; font-size: 15px; margin-bottom: 5px;'>👤 身分比對：相符 ({user_info.get('name', '')})</div>"
-                                    f"<div style='color:#81c784; font-size: 15px; margin-bottom: 15px;'>🚌 路線：{active_order['route']}</div>"
-                                    "<div style='background-color:#050d08; padding: 15px; border-radius: 8px; border: 1px solid #194025;'>"
-                                    "<div style='color:#6c757d; font-size: 13px; text-transform: uppercase;'>Deducted (自凍結扣除)</div>"
-                                    f"<div style='color:#39ff14; font-size: 38px; font-weight: bold; font-family: \"Courier New\", Courier, monospace;'>- NT$ {actual_fare}</div>"
-                                    "</div>"
-                                    "<div style='margin-top: 15px; color:#a5d6a7; font-size: 18px; text-align: right; font-weight: bold;'>"
-                                    f"剩餘可用餘額：NT$ {user_info['balance']}"
-                                    "</div>"
-                                    "</div>"
-                                )
+                                # 🌟 防呆重點 2：成功扣款畫面也改為單行字串
+                                success_html = f"<div style='background-color:#0a1910; border: 3px solid #28a745; padding: 20px; border-radius: 12px; box-shadow: inset 0 0 25px rgba(40, 167, 69, 0.2);'><h2 style='color:#39ff14; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>🟢 驗證與扣款成功</h2><hr style='border-color:#194025; margin: 15px 0;'><div style='color:#81c784; font-size: 15px; margin-bottom: 5px;'>👤 身分比對：相符 ({user_info.get('name', '')})</div><div style='color:#81c784; font-size: 15px; margin-bottom: 15px;'>🚌 路線：{active_order['route']}</div><div style='background-color:#050d08; padding: 15px; border-radius: 8px; border: 1px solid #194025;'><div style='color:#6c757d; font-size: 13px; text-transform: uppercase;'>Deducted Amount (自凍結扣除)</div><div style='color:#39ff14; font-size: 38px; font-weight: bold; font-family: \"Courier New\", Courier, monospace;'>- NT$ {actual_fare}</div></div><div style='margin-top: 15px; color:#a5d6a7; font-size: 18px; text-align: right; font-weight: bold;'>剩餘可用餘額：NT$ {user_info['balance']}</div></div>"
                                 
                                 st.session_state.last_processed_pic_size = current_pic_size
                                 st.session_state.last_status_msg = success_html
                                 status_placeholder.markdown(success_html, unsafe_allow_html=True)
                             else:
-                                error_html = (
-                                    "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'>"
-                                    "<h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 餘額異常</h2>"
-                                    "<hr style='border-color:#444; margin: 15px 0;'>"
-                                    "<p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>凍結餘額不足扣款</p>"
-                                    "</div>"
-                                )
+                                error_html = "<div style='background-color:#1e1e1e; border: 3px solid #dc3545; padding: 25px; border-radius: 12px; box-shadow: inset 0 0 20px rgba(220, 53, 69, 0.3);'><h2 style='color:#ff4d4d; text-align:center; margin:0; font-family: \"Courier New\", Courier, monospace; letter-spacing: 2px;'>❌ 餘額異常</h2><hr style='border-color:#444; margin: 15px 0;'><p style='color:#ccc; font-size:18px; text-align:center; font-weight: bold;'>凍結餘額不足扣款</p></div>"
                                 st.session_state.last_processed_pic_size = current_pic_size
                                 st.session_state.last_status_msg = error_html
                                 status_placeholder.markdown(error_html, unsafe_allow_html=True)
